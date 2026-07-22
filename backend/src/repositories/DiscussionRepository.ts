@@ -12,4 +12,7 @@ export interface DiscussionRepository {
 
   /** Return every Discussion in insertion order. */
   findAll(): Promise<Discussion[]>;
+
+  /** Return the Discussion with the given id, or null when not found. */
+  findById(id: string): Promise<Discussion | null>;
 }

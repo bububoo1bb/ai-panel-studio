@@ -8,7 +8,7 @@ import { InMemoryDiscussionRepository } from "../repositories/InMemoryDiscussion
  * repository so every test is deterministic and free of shared state.
  */
 function createTestApp() {
-  return createApp(new InMemoryDiscussionRepository());
+  return createApp({ discussionRepository: new InMemoryDiscussionRepository() });
 }
 
 describe("Discussion API", () => {
@@ -142,6 +142,30 @@ describe("Discussion API", () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: "Title is required" });
+    });
+  });
+
+  // --------------------------------------------------------------------
+  // DiscussionRepository.findById — direct unit tests
+  // --------------------------------------------------------------------
+  describe("DiscussionRepository.findById", () => {
+    it("returns the Discussion when it exists", async () => {
+      const repo = new InMemoryDiscussionRepository();
+      const created = await repo.create({ title: "Find Me" });
+
+      const found = await repo.findById(created.id);
+
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(created.id);
+      expect(found!.title).toBe("Find Me");
+    });
+
+    it("returns null when no Discussion matches the id", async () => {
+      const repo = new InMemoryDiscussionRepository();
+
+      const found = await repo.findById("non-existent-id");
+
+      expect(found).toBeNull();
     });
   });
 });

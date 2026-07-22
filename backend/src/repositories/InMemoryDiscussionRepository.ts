@@ -26,4 +26,9 @@ export class InMemoryDiscussionRepository implements DiscussionRepository {
     // Return a shallow copy so callers cannot mutate internal state.
     return [...this.discussions];
   }
+
+  async findById(id: string): Promise<Discussion | null> {
+    const discussion = this.discussions.find((d) => d.id === id);
+    return discussion ?? null;
+  }
 }

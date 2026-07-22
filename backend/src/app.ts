@@ -2,16 +2,25 @@ import express from "express";
 import cors from "cors";
 import { DiscussionRepository } from "./repositories/DiscussionRepository.js";
 import { InMemoryDiscussionRepository } from "./repositories/InMemoryDiscussionRepository.js";
+import { MessageRepository } from "./repositories/MessageRepository.js";
+import { InMemoryMessageRepository } from "./repositories/InMemoryMessageRepository.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
+import { createMessageRouter } from "./routes/message.js";
+
+/** Dependencies that can be injected into the application. */
+export interface AppDependencies {
+  discussionRepository: DiscussionRepository;
+  messageRepository: MessageRepository;
+}
 
 /**
  * Create a fully configured Express application.
  *
- * Accepts an optional DiscussionRepository so that tests can inject an
- * isolated in-memory instance.  When omitted, a default
- * InMemoryDiscussionRepository is used for normal startup.
+ * Accepts optional dependency overrides so that tests can inject isolated
+ * in-memory instances.  When omitted, default in-memory repositories are
+ * used for normal startup.
  */
-export function createApp(discussionRepository?: DiscussionRepository) {
+export function createApp(dependencies?: Partial<AppDependencies>) {
   const app = express();
 
   // Middleware
@@ -23,9 +32,20 @@ export function createApp(discussionRepository?: DiscussionRepository) {
     res.json({ status: "ok" });
   });
 
+  // Repositories — resolve injected or default
+  const discussionRepository =
+    dependencies?.discussionRepository ?? new InMemoryDiscussionRepository();
+  const messageRepository =
+    dependencies?.messageRepository ?? new InMemoryMessageRepository();
+
   // Discussion routes
-  const repository = discussionRepository ?? new InMemoryDiscussionRepository();
-  app.use("/api/discussions", createDiscussionRouter(repository));
+  app.use("/api/discussions", createDiscussionRouter(discussionRepository));
+
+  // Message routes (scoped under a discussion)
+  app.use(
+    "/api/discussions/:discussionId/messages",
+    createMessageRouter(messageRepository, discussionRepository),
+  );
 
   return app;
 }
