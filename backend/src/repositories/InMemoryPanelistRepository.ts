@@ -31,6 +31,11 @@ export class InMemoryPanelistRepository implements PanelistRepository {
     return panelist;
   }
 
+  async findById(id: string): Promise<Panelist | null> {
+    const panelist = this.panelists.find((p) => p.id === id);
+    return panelist ?? null;
+  }
+
   async findByDiscussionId(discussionId: string): Promise<Panelist[]> {
     // Return a shallow copy filtered by discussionId in insertion order.
     return this.panelists.filter((p) => p.discussionId === discussionId);

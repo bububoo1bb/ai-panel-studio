@@ -10,6 +10,9 @@ export interface PanelistRepository {
   /** Persist a new Panelist and return the saved entity. */
   create(input: CreatePanelistInput): Promise<Panelist>;
 
+  /** Return the Panelist with the given id, or null when not found. */
+  findById(id: string): Promise<Panelist | null>;
+
   /** Return every Panelist belonging to the given discussion in insertion order. */
   findByDiscussionId(discussionId: string): Promise<Panelist[]>;
 }
