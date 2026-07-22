@@ -6,6 +6,8 @@ import { MessageRepository } from "./repositories/MessageRepository.js";
 import { InMemoryMessageRepository } from "./repositories/InMemoryMessageRepository.js";
 import { PanelistRepository } from "./repositories/PanelistRepository.js";
 import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepository.js";
+import { AIService } from "./ai/AIService.js";
+import { MockAIService } from "./ai/MockAIService.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
 import { createMessageRouter } from "./routes/message.js";
 import { createPanelistRouter } from "./routes/panelist.js";
@@ -15,6 +17,8 @@ export interface AppDependencies {
   discussionRepository: DiscussionRepository;
   messageRepository: MessageRepository;
   panelistRepository: PanelistRepository;
+  /** AI service implementation. Defaults to MockAIService when not injected. */
+  aiService: AIService;
 }
 
 /**
@@ -43,6 +47,10 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
     dependencies?.messageRepository ?? new InMemoryMessageRepository();
   const panelistRepository =
     dependencies?.panelistRepository ?? new InMemoryPanelistRepository();
+
+  // AI Service — resolve injected or default to MockAIService for safety
+  const aiService =
+    dependencies?.aiService ?? new MockAIService();
 
   // Discussion routes
   app.use("/api/discussions", createDiscussionRouter(discussionRepository));
