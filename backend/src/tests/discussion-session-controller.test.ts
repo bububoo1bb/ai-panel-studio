@@ -14,8 +14,11 @@ function makeMsg(id: string, discussionId: string, role: "user" | "assistant" = 
   return {
     id,
     discussionId,
+    panelistId: null,
     role,
+    kind: null,
     content: `message ${id}`,
+    replyToMessageId: null,
     createdAt: new Date().toISOString(),
   };
 }

@@ -16,8 +16,11 @@ export class InMemoryMessageRepository implements MessageRepository {
     const message: Message = {
       id: randomUUID(),
       discussionId: input.discussionId,
+      panelistId: input.panelistId ?? null,
       role: input.role,
+      kind: input.kind ?? null,
       content: input.content,
+      replyToMessageId: input.replyToMessageId ?? null,
       createdAt: new Date().toISOString(),
     };
     this.messages.push(message);

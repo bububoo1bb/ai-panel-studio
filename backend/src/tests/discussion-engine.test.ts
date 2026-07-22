@@ -52,11 +52,14 @@ function makeMessage(
   return {
     id: "msg-1",
     discussionId: "disc-1",
+    panelistId: null,
     role: "assistant",
+    kind: null,
     content: "Default response",
+    replyToMessageId: null,
     createdAt: new Date().toISOString(),
     ...overrides,
-  };
+  } as Message;
 }
 
 // ------------------------------------------------------------------

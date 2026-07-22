@@ -44,22 +44,31 @@ function sampleMessages(): Message[] {
     {
       id: "msg-1",
       discussionId: "disc-1",
+      panelistId: null,
       role: "user",
+      kind: null,
       content: "What are the main challenges in transitioning to renewable energy?",
+      replyToMessageId: null,
       createdAt: "2026-07-22T00:00:01.000Z",
     },
     {
       id: "msg-2",
       discussionId: "disc-1",
+      panelistId: null,
       role: "assistant",
+      kind: null,
       content: "The primary challenges include grid infrastructure costs and energy storage limitations.",
+      replyToMessageId: null,
       createdAt: "2026-07-22T00:00:02.000Z",
     },
     {
       id: "msg-3",
       discussionId: "disc-1",
+      panelistId: null,
       role: "user",
+      kind: null,
       content: "How does carbon pricing address these issues?",
+      replyToMessageId: null,
       createdAt: "2026-07-22T00:00:03.000Z",
     },
   ];
@@ -151,8 +160,11 @@ describe("buildPanelistMessages", () => {
       {
         id: "msg-1",
         discussionId: "disc-1",
+        panelistId: null,
         role: "user",
+        kind: null,
         content: "A question",
+        replyToMessageId: null,
         createdAt: "2026-07-22T00:00:00.000Z",
       },
     ];
@@ -174,8 +186,11 @@ describe("buildPanelistMessages", () => {
       {
         id: "msg-1",
         discussionId: "disc-1",
+        panelistId: null,
         role: "assistant",
+        kind: null,
         content: "An answer",
+        replyToMessageId: null,
         createdAt: "2026-07-22T00:00:00.000Z",
       },
     ];

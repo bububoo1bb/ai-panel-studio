@@ -167,8 +167,11 @@ class FailingOnNthCallRoundController {
     return {
       id: `msg-${input.panelistId}`,
       discussionId: input.discussionId,
+      panelistId: null,
       role: "assistant",
+      kind: null,
       content: `Response from ${input.panelistId}`,
+      replyToMessageId: null,
       createdAt: new Date().toISOString(),
     };
   }
@@ -802,8 +805,11 @@ describe("DiscussionController", () => {
           return {
             id: `msg-${input.panelistId}`,
             discussionId: input.discussionId,
+            panelistId: null,
             role: "assistant" as const,
+            kind: null,
             content: `Response from ${input.panelistId}`,
+            replyToMessageId: null,
             createdAt: new Date().toISOString(),
           };
         },
