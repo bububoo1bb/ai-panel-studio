@@ -15,6 +15,7 @@ function sampleDiscussion(overrides: Partial<Discussion> = {}): Discussion {
   return {
     id: "disc-1",
     title: "The future of renewable energy",
+    status: "active",
     createdAt: "2026-07-22T00:00:00.000Z",
     ...overrides,
   };

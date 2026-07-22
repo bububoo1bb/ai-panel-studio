@@ -16,6 +16,7 @@ export class InMemoryDiscussionRepository implements DiscussionRepository {
     const discussion: Discussion = {
       id: randomUUID(),
       title: input.title,
+      status: "active",
       createdAt: new Date().toISOString(),
     };
     this.discussions.push(discussion);
