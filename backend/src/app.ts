@@ -4,13 +4,17 @@ import { DiscussionRepository } from "./repositories/DiscussionRepository.js";
 import { InMemoryDiscussionRepository } from "./repositories/InMemoryDiscussionRepository.js";
 import { MessageRepository } from "./repositories/MessageRepository.js";
 import { InMemoryMessageRepository } from "./repositories/InMemoryMessageRepository.js";
+import { PanelistRepository } from "./repositories/PanelistRepository.js";
+import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepository.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
 import { createMessageRouter } from "./routes/message.js";
+import { createPanelistRouter } from "./routes/panelist.js";
 
 /** Dependencies that can be injected into the application. */
 export interface AppDependencies {
   discussionRepository: DiscussionRepository;
   messageRepository: MessageRepository;
+  panelistRepository: PanelistRepository;
 }
 
 /**
@@ -37,6 +41,8 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
     dependencies?.discussionRepository ?? new InMemoryDiscussionRepository();
   const messageRepository =
     dependencies?.messageRepository ?? new InMemoryMessageRepository();
+  const panelistRepository =
+    dependencies?.panelistRepository ?? new InMemoryPanelistRepository();
 
   // Discussion routes
   app.use("/api/discussions", createDiscussionRouter(discussionRepository));
@@ -45,6 +51,12 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
   app.use(
     "/api/discussions/:discussionId/messages",
     createMessageRouter(messageRepository, discussionRepository),
+  );
+
+  // Panelist routes (scoped under a discussion)
+  app.use(
+    "/api/discussions/:discussionId/panelists",
+    createPanelistRouter(panelistRepository, discussionRepository),
   );
 
   return app;
