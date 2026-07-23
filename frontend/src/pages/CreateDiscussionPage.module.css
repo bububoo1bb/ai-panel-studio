@@ -1,0 +1,36 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: var(--space-8);
+}
+
+.back {
+  display: inline-block;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.back:hover {
+  color: var(--color-text-primary);
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.main {
+  /* form is self-contained */
+}

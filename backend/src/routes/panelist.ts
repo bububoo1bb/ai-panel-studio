@@ -1,12 +1,16 @@
 import { Router, Request, Response } from "express";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
 import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
+import { PanelistGenerator } from "../services/PanelistGenerator.js";
 
 /**
  * Create an Express router for Panelist endpoints scoped to a discussion.
  *
  * Both repositories are injected through the factory function so that
  * tests can supply isolated instances without relying on global state.
+ *
+ * When `panelistGenerator` is provided, the POST /generate endpoint is
+ * mounted for AI-powered panelist generation.
  *
  * This router expects to be mounted at
  * `/api/discussions/:discussionId/panelists` so that `req.params.discussionId`
@@ -15,6 +19,7 @@ import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 export function createPanelistRouter(
   panelistRepository: PanelistRepository,
   discussionRepository: DiscussionRepository,
+  panelistGenerator?: PanelistGenerator,
 ): Router {
   const router = Router({ mergeParams: true });
 
@@ -117,6 +122,66 @@ export function createPanelistRouter(
     });
     res.status(201).json(panelist);
   });
+
+  // ─────────────────────────────────────────────────────────────
+  // POST /generate — AI-powered panelist generation
+  // ─────────────────────────────────────────────────────────────
+  if (panelistGenerator) {
+    router.post("/generate", async (req: Request, res: Response) => {
+      const { discussionId } = req.params;
+
+      try {
+        // Verify the discussion exists
+        const discussion = await discussionRepository.findById(discussionId);
+        if (!discussion) {
+          res.status(404).json({ error: "Discussion not found" });
+          return;
+        }
+
+        const { expertCount } = req.body ?? {};
+
+        // Validate expertCount
+        if (expertCount === undefined || expertCount === null) {
+          res.status(400).json({ error: "expertCount is required" });
+          return;
+        }
+        if (typeof expertCount !== "number") {
+          res.status(400).json({ error: "expertCount must be a number" });
+          return;
+        }
+        if (!Number.isInteger(expertCount)) {
+          res.status(400).json({ error: "expertCount must be an integer" });
+          return;
+        }
+        if (expertCount < 2 || expertCount > 8) {
+          res.status(400).json({ error: "expertCount must be between 2 and 8" });
+          return;
+        }
+
+        const panelists = await panelistGenerator.generate({
+          discussionId,
+          topic: discussion.title,
+          expertCount,
+        });
+
+        res.status(201).json(panelists);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Internal server error";
+
+        // Distinguish known validation errors from unexpected failures
+        if (
+          message.includes("Failed to parse") ||
+          message.includes("must be") ||
+          message.includes("not a JSON array")
+        ) {
+          res.status(422).json({ error: message });
+        } else {
+          console.error("Panelist generation error:", message);
+          res.status(500).json({ error: "Panelist generation failed" });
+        }
+      }
+    });
+  }
 
   return router;
 }

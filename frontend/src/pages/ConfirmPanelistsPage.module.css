@@ -1,0 +1,156 @@
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.back {
+  display: inline-block;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.back:hover {
+  color: var(--color-text-primary);
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.statusContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.statusIcon {
+  font-size: 3rem;
+  margin-bottom: var(--space-2);
+  opacity: 0.7;
+}
+
+.status {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.statusHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.errorText {
+  font-size: var(--text-lg);
+  color: var(--color-danger);
+  max-width: 400px;
+}
+
+.statusActions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section {
+  /* section grouping */
+}
+
+.sectionTitle {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.hostCard {
+  max-width: 480px;
+}
+
+.expertGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-4);
+}
+
+/* ── Panelist Card (confirmation page variant) ───────────── */
+.card {
+  display: flex;
+  gap: var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid;
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.info {
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+}
+
+.occupation {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.stance {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}

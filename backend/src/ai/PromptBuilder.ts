@@ -3,6 +3,75 @@ import { Message } from "../domain/message.js";
 import { Panelist } from "../domain/panelist.js";
 import { AIMessage } from "./types.js";
 
+// ═══════════════════════════════════════════════════════════════
+// Panelist Generation Prompts
+// ═══════════════════════════════════════════════════════════════
+
+/** System prompt that instructs the AI to generate a diverse panel in JSON. */
+export function buildPanelistGenerationSystemPrompt(): string {
+  return [
+    "You are a roundtable discussion producer.",
+    "Given a discussion topic and the number of experts requested,",
+    "generate a diverse panel consisting of 1 moderator (host) and",
+    "the requested number of experts.",
+    "",
+    "Output ONLY valid JSON — no markdown fences, no commentary,",
+    "no surrounding text, no trailing commas.",
+    "",
+    "The JSON must be an array of objects, each with these exact keys:",
+    '- role: "host" or "expert"',
+    "- name: full Chinese name",
+    "- occupation: profession or field (Chinese)",
+    "- title: specific job title or role description (Chinese)",
+    "- stance: concise statement of their position on the topic, 1 sentence (Chinese)",
+    "",
+    "Requirements:",
+    "- The host must be neutral, skilled at facilitation,",
+    '  with stance "中立，引导讨论深入"',
+    "- Experts must represent genuinely different perspectives on the topic",
+    "- Each expert's stance must be distinct — avoid overlapping positions",
+    "- Names must be realistic Chinese names (2-3 characters for given name)",
+    "- Occupations and titles must be specific, not generic",
+    "- All text must be in Chinese",
+    "",
+    "Example output format:",
+    '[{"role":"host","name":"林澜","occupation":"主持人","title":"圆桌讨论主持人","stance":"中立，引导讨论深入"},{"role":"expert","name":"张明远","occupation":"经济学家","title":"宏观经济学家","stance":"支持市场化解决方案推动产业升级"}]',
+  ].join("\n");
+}
+
+/**
+ * Build the AI message list for generating a panel of experts.
+ *
+ * Returns:
+ * 1. One system message (generation instructions).
+ * 2. One user message with the topic and expert count.
+ */
+export function buildPanelistGenerationMessages(input: {
+  topic: string;
+  expertCount: number;
+}): AIMessage[] {
+  return [
+    {
+      role: "system",
+      content: buildPanelistGenerationSystemPrompt(),
+    },
+    {
+      role: "user",
+      content: [
+        `Discussion topic: ${input.topic}`,
+        `Number of experts: ${input.expertCount}`,
+        "",
+        "Generate 1 host and the requested number of experts.",
+        "Return ONLY the JSON array — no other text.",
+      ].join("\n"),
+    },
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Panelist Discussion Prompts
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * Construct a deterministic system prompt for a panelist.
  *

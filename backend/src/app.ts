@@ -8,6 +8,7 @@ import { PanelistRepository } from "./repositories/PanelistRepository.js";
 import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepository.js";
 import { AIService } from "./ai/AIService.js";
 import { MockAIService } from "./ai/MockAIService.js";
+import { PanelistGenerator } from "./services/PanelistGenerator.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
 import { createMessageRouter } from "./routes/message.js";
 import { createPanelistRouter } from "./routes/panelist.js";
@@ -19,6 +20,8 @@ export interface AppDependencies {
   panelistRepository: PanelistRepository;
   /** AI service implementation. Defaults to MockAIService when not injected. */
   aiService: AIService;
+  /** Panelist generator service. Created from aiService + repos when not injected. */
+  panelistGenerator: PanelistGenerator;
 }
 
 /**
@@ -52,6 +55,15 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
   const aiService =
     dependencies?.aiService ?? new MockAIService();
 
+  // Panelist Generator — resolve injected or create from available deps
+  const panelistGenerator =
+    dependencies?.panelistGenerator ??
+    new PanelistGenerator({
+      aiService,
+      discussionRepository,
+      panelistRepository,
+    });
+
   // Discussion routes
   app.use("/api/discussions", createDiscussionRouter(discussionRepository));
 
@@ -64,7 +76,7 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
   // Panelist routes (scoped under a discussion)
   app.use(
     "/api/discussions/:discussionId/panelists",
-    createPanelistRouter(panelistRepository, discussionRepository),
+    createPanelistRouter(panelistRepository, discussionRepository, panelistGenerator),
   );
 
   return app;
