@@ -1,4 +1,4 @@
-import { Discussion, CreateDiscussionInput } from "../domain/discussion.js";
+import { Discussion, DiscussionStatus, CreateDiscussionInput } from "../domain/discussion.js";
 
 /**
  * Persistence abstraction for Discussion entities.
@@ -15,4 +15,7 @@ export interface DiscussionRepository {
 
   /** Return the Discussion with the given id, or null when not found. */
   findById(id: string): Promise<Discussion | null>;
+
+  /** Update the status of an existing Discussion. */
+  updateStatus(id: string, status: DiscussionStatus): Promise<Discussion>;
 }

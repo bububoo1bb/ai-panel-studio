@@ -139,3 +139,107 @@ export function buildPanelistMessages(input: {
 
   return result;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Moderator Prompts (M16)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Build the system prompt for the moderator's opening statement.
+ *
+ * The prompt instructs the AI to deliver a professional opening from
+ * the host panelist's perspective, welcoming experts, framing the topic,
+ * and setting a constructive tone — without expressing a personal position.
+ */
+export function buildModeratorOpeningPrompt(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+  expertNames: string[];
+}): string {
+  const expertList = input.expertNames.join("、");
+  return [
+    `你是${input.hostName}，${input.hostTitle}，本次圆桌讨论的主持人。`,
+    "",
+    "你的任务：以主持人的身份，专业地开启本场讨论。",
+    "",
+    "要求：",
+    `- 欢迎各位专家：${expertList}`,
+    `- 简要重申讨论主题："${input.topic}"`,
+    "- 阐述为什么这个话题值得深入探讨",
+    "- 设定建设性、理性严谨的讨论基调",
+    "- 不要表达你自己对这个话题的立场——你必须保持中立",
+    "- 开场白控制在3-5句话",
+    "- 只输出你的公开开场白——不要暴露任何内部推理过程",
+  ].join("\n");
+}
+
+/**
+ * Build the system prompt for the moderator's closing statement.
+ *
+ * The prompt instructs the AI to deliver a professional closing from
+ * the host panelist's perspective, thanking experts, summarizing key
+ * perspectives, and noting areas of agreement and productive disagreement.
+ */
+export function buildModeratorClosingPrompt(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+}): string {
+  return [
+    `你是${input.hostName}，${input.hostTitle}，本次圆桌讨论的主持人。`,
+    "",
+    `关于"${input.topic}"的讨论即将结束。`,
+    "",
+    "你的任务：以主持人的身份，专业地结束本场讨论。",
+    "",
+    "要求：",
+    "- 感谢各位专家的贡献",
+    "- 简要总结讨论中提出的关键视角和观点",
+    "- 指出已形成的共识和富有建设性的分歧",
+    "- 不要引入新的论点，也不要选边站队",
+    "- 收尾语控制在3-5句话",
+    "- 只输出你的公开收尾语——不要暴露任何内部推理过程",
+  ].join("\n");
+}
+
+/**
+ * Build the AI message list for the moderator's opening statement.
+ *
+ * Returns an array with one system message (the opening instructions).
+ * The returned messages are provider-independent and ready to pass to
+ * {@link AIService.generate}.
+ */
+export function buildModeratorOpeningMessages(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+  expertNames: string[];
+}): AIMessage[] {
+  return [
+    {
+      role: "system",
+      content: buildModeratorOpeningPrompt(input),
+    },
+  ];
+}
+
+/**
+ * Build the AI message list for the moderator's closing statement.
+ *
+ * Returns an array with one system message (the closing instructions).
+ * The returned messages are provider-independent and ready to pass to
+ * {@link AIService.generate}.
+ */
+export function buildModeratorClosingMessages(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+}): AIMessage[] {
+  return [
+    {
+      role: "system",
+      content: buildModeratorClosingPrompt(input),
+    },
+  ];
+}

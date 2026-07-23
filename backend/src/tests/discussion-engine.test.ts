@@ -3,7 +3,7 @@ import { DiscussionEngine } from "../services/DiscussionEngine.js";
 import { DiscussionController } from "../controllers/DiscussionController.js";
 import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
-import { Discussion, CreateDiscussionInput } from "../domain/discussion.js";
+import { Discussion, DiscussionStatus, CreateDiscussionInput } from "../domain/discussion.js";
 import { Panelist, CreatePanelistInput } from "../domain/panelist.js";
 import { Message } from "../domain/message.js";
 
@@ -186,6 +186,10 @@ class StubDiscussionRepository implements DiscussionRepository {
   async findById(_id: string): Promise<Discussion | null> {
     return { ...this.current };
   }
+
+  async updateStatus(_id: string, _status: DiscussionStatus): Promise<Discussion> {
+    throw new Error("StubDiscussionRepository.updateStatus() not implemented");
+  }
 }
 
 /**
@@ -207,6 +211,10 @@ class FailingDiscussionRepository implements DiscussionRepository {
   }
 
   async findById(_id: string): Promise<Discussion | null> {
+    throw new Error(this.errorMessage);
+  }
+
+  async updateStatus(_id: string, _status: DiscussionStatus): Promise<Discussion> {
     throw new Error(this.errorMessage);
   }
 }
@@ -564,6 +572,9 @@ describe("DiscussionEngine", () => {
           // Subsequent calls: discussion is finished
           return { ...finishedDiscussion };
         },
+        updateStatus: async (_id: string, _status: DiscussionStatus) => {
+          throw new Error("not implemented");
+        },
       };
 
       const engine = new DiscussionEngine({
@@ -595,6 +606,9 @@ describe("DiscussionEngine", () => {
         findById: async (id: string) => {
           callLog.push(id);
           return makeDiscussion({ status: "active" });
+        },
+        updateStatus: async (_id: string, _status: DiscussionStatus) => {
+          throw new Error("not implemented");
         },
       };
 
@@ -887,6 +901,9 @@ describe("DiscussionEngine", () => {
           throw new Error("not implemented");
         },
         findById: async (_id: string) => null,
+        updateStatus: async (_id: string, _status: DiscussionStatus) => {
+          throw new Error("not implemented");
+        },
       };
 
       const engine = new DiscussionEngine({

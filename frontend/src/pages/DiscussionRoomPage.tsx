@@ -8,18 +8,23 @@
  *
  * Follows DDD.md §3 演播厅页面设计 exactly.
  *
- * TODO: Real-time updates via SSE — currently polls on mount only.
- *       When GET /api/discussions/:id/events (SSE) is implemented,
- *       subscribe to expert_status_update, message_created, and
- *       consensus_updated events for live updates.
+ * M16: Discussion execution support — start button, execution state,
+ *      and temporary HTTP polling for transcript updates.
+ *      Polling is isolated in one useEffect; replacing with SSE
+ *      changes one location only.
+ *
+ * Future: SSE event streaming for real-time updates.
+ *   eventSource.addEventListener("message_created", ...);
+ *   eventSource.addEventListener("expert_status_update", ...);
+ *   eventSource.addEventListener("consensus_updated", ...);
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import type { Discussion } from "../types/discussion.js";
 import type { Panelist } from "../types/panelist.js";
 import type { Message } from "../types/message.js";
-import { fetchDiscussion } from "../api/discussionApi.js";
+import { fetchDiscussion, startDiscussion } from "../api/discussionApi.js";
 import { fetchPanelists } from "../api/panelistApi.js";
 import { fetchMessages } from "../api/messageApi.js";
 import { ExpertPanel } from "../components/discussion/ExpertPanel.js";
@@ -28,6 +33,8 @@ import { InsightPanel } from "../components/discussion/InsightPanel.js";
 import styles from "./DiscussionRoomPage.module.css";
 
 type PageState = "loading" | "error" | "ready";
+/** Discussion execution state — separate from page load state. */
+type ExecutionState = "idle" | "running" | "finished";
 
 export default function DiscussionRoomPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +44,9 @@ export default function DiscussionRoomPage() {
   const [panelists, setPanelists] = useState<Panelist[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+  const [executionState, setExecutionState] = useState<ExecutionState>("idle");
+  const [executionError, setExecutionError] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -61,6 +71,17 @@ export default function DiscussionRoomPage() {
         setActiveSpeakerId(lastMsg.panelistId);
       }
 
+      // Determine execution state from discussion status
+      if (disc.status === "finished") {
+        setExecutionState("finished");
+      } else if (msgs.length > 0) {
+        // Discussion is active with messages — may be mid-execution
+        // (page refresh during a running discussion)
+        setExecutionState("running");
+      } else {
+        setExecutionState("idle");
+      }
+
       setPageState("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载讨论失败");
@@ -72,29 +93,66 @@ export default function DiscussionRoomPage() {
     loadData();
   }, [loadData]);
 
-  // TODO: Set up SSE connection for real-time updates
-  // useEffect(() => {
-  //   if (!id || pageState !== "ready") return;
-  //
-  //   const eventSource = new EventSource(`/api/discussions/${id}/events`);
-  //
-  //   eventSource.addEventListener("message_created", (e) => {
-  //     const msg: Message = JSON.parse(e.data);
-  //     setMessages((prev) => [...prev, msg]);
-  //     setActiveSpeakerId(msg.panelistId);
-  //   });
-  //
-  //   eventSource.addEventListener("expert_status_update", (e) => {
-  //     const update = JSON.parse(e.data);
-  //     setPanelists((prev) =>
-  //       prev.map((p) =>
-  //         p.id === update.expert_id ? { ...p, status: update.status } : p,
-  //       ),
-  //     );
-  //   });
-  //
-  //   return () => eventSource.close();
-  // }, [id, pageState]);
+  // ── Start discussion handler ────────────────────────────────
+  const handleStart = useCallback(async () => {
+    if (!id) return;
+
+    setExecutionError(null);
+    setExecutionState("running");
+
+    try {
+      await startDiscussion(id, 5); // default maxRounds = 5
+    } catch (err) {
+      setExecutionError(
+        err instanceof Error ? err.message : "讨论启动失败",
+      );
+      setExecutionState("idle");
+    }
+  }, [id]);
+
+  // ── M16 TEMPORARY: HTTP polling for transcript updates ──────
+  // Replaced by SSE event streaming in a future milestone.
+  // The polling logic is isolated in this single useEffect.
+  useEffect(() => {
+    if (!id || executionState !== "running") return;
+
+    const poll = async () => {
+      try {
+        const [disc, msgs] = await Promise.all([
+          fetchDiscussion(id),
+          fetchMessages(id),
+        ]);
+
+        setDiscussion(disc);
+        setMessages(msgs);
+
+        // Update active speaker
+        if (msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1];
+          setActiveSpeakerId(lastMsg.panelistId);
+        }
+
+        // Check if discussion has finished
+        if (disc.status === "finished") {
+          setExecutionState("finished");
+        }
+      } catch {
+        // Polling failure is silent — retry on next interval
+      }
+    };
+
+    // Initial poll immediately
+    poll();
+
+    pollingRef.current = setInterval(poll, 2000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [id, executionState]);
 
   // ── Loading state ──────────────────────────────────────────
   if (pageState === "loading") {
@@ -132,11 +190,36 @@ export default function DiscussionRoomPage() {
         </Link>
         <h1 className={styles.topic}>{discussion?.title ?? "讨论演播厅"}</h1>
         <div className={styles.topRight}>
-          {discussion?.status === "active" && (
+          {executionState === "idle" && (
+            <button
+              className={styles.startButton}
+              onClick={handleStart}
+              disabled={panelists.length === 0}
+            >
+              开始讨论
+            </button>
+          )}
+          {executionState === "running" && (
             <span className={styles.onAir}>● ON AIR</span>
+          )}
+          {executionState === "finished" && (
+            <span className={styles.finishedBadge}>讨论已结束</span>
           )}
         </div>
       </header>
+
+      {/* Execution error banner */}
+      {executionError && (
+        <div className={styles.executionError}>
+          <span>{executionError}</span>
+          <button
+            className={styles.retryButton}
+            onClick={() => setExecutionError(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Three-column layout */}
       <div className={styles.columns}>

@@ -46,9 +46,10 @@ export class DiscussionController {
     // 1. Load all panelists belonging to the discussion in insertion order
     const panelists = await this.panelistRepo.findByDiscussionId(discussionId);
 
-    // 2. Skip panelists whose status is "finished"
+    // 2. Skip panelists whose status is "finished", and skip the host
+    // (host speaks only through ModeratorStrategy during session boundaries)
     const activePanelists = panelists.filter(
-      (p) => p.status !== "finished",
+      (p) => p.status !== "finished" && p.role !== "host",
     );
 
     // 3-4. For every remaining panelist, execute turn and collect Messages

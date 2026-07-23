@@ -111,6 +111,7 @@ function stubDiscussionRepo(discussion: Discussion | null): DiscussionRepository
     findById: async () => discussion,
     create: async () => { throw new Error("create not expected"); },
     findAll: async () => { throw new Error("findAll not expected"); },
+    updateStatus: async () => { throw new Error("updateStatus not expected"); },
   };
 }
 
@@ -119,6 +120,7 @@ function failingDiscussionRepo(): DiscussionRepository {
     findById: async () => { throw new Error("repo error"); },
     create: async () => { throw new Error("create not expected"); },
     findAll: async () => { throw new Error("findAll not expected"); },
+    updateStatus: async () => { throw new Error("updateStatus not expected"); },
   };
 }
 

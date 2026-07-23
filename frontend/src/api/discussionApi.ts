@@ -41,17 +41,25 @@ export async function createDiscussion(title: string): Promise<Discussion> {
   return res.json();
 }
 
+/** Start the AI roundtable discussion for the given discussion. */
+export async function startDiscussion(
+  discussionId: string,
+  maxRounds: number,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/${discussionId}/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ maxRounds }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Failed to start discussion: ${res.status}`);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // TODO — Missing backend endpoints
 // ─────────────────────────────────────────────────────────────
-//
-// The following endpoints are not yet implemented in the backend.
-// They will be needed to complete the discussion lifecycle:
-//
-//   POST /api/discussions/:id/start
-//     — Start the discussion engine (triggers AI roundtable).
-//       Request: { maxRounds: number }
-//       Response: { sessionId: string }
 //
 //   POST /api/discussions/:id/finish
 //     — Manually finish/stop a running discussion.
@@ -63,6 +71,3 @@ export async function createDiscussion(title: string): Promise<Discussion> {
 //   GET  /api/discussions/:id/events (SSE)
 //     — Server-Sent Events stream for real-time updates.
 //       Events: expert_status_update, message_created, consensus_updated
-//
-// These are documented here so the frontend can be built against
-// the expected contract without modifying the backend prematurely.

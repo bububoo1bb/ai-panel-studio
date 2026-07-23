@@ -60,6 +60,66 @@
   50% { opacity: 0.4; }
 }
 
+/* ── Start Button ─────────────────────────────────────────── */
+.startButton {
+  padding: 6px 20px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary, #5b9bd5);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.startButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.startButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Finished Badge ───────────────────────────────────────── */
+.finishedBadge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+/* ── Execution Error Banner ───────────────────────────────── */
+.executionError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  background: #fef2f2;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid #fecaca;
+  flex-shrink: 0;
+}
+
+.retryButton {
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  color: var(--color-danger);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.retryButton:hover {
+  opacity: 0.7;
+}
+
 /* ── Three Columns ────────────────────────────────────────── */
 .columns {
   display: flex;

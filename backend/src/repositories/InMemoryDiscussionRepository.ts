@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Discussion, CreateDiscussionInput } from "../domain/discussion.js";
+import { Discussion, DiscussionStatus, CreateDiscussionInput } from "../domain/discussion.js";
 import { DiscussionRepository } from "./DiscussionRepository.js";
 
 /**
@@ -31,5 +31,14 @@ export class InMemoryDiscussionRepository implements DiscussionRepository {
   async findById(id: string): Promise<Discussion | null> {
     const discussion = this.discussions.find((d) => d.id === id);
     return discussion ?? null;
+  }
+
+  async updateStatus(id: string, status: DiscussionStatus): Promise<Discussion> {
+    const discussion = this.discussions.find((d) => d.id === id);
+    if (!discussion) {
+      throw new Error("Discussion not found");
+    }
+    discussion.status = status;
+    return discussion;
   }
 }

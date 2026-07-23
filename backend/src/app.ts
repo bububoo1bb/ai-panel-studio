@@ -9,6 +9,14 @@ import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepos
 import { AIService } from "./ai/AIService.js";
 import { MockAIService } from "./ai/MockAIService.js";
 import { PanelistGenerator } from "./services/PanelistGenerator.js";
+import { RoundController } from "./controllers/RoundController.js";
+import { DiscussionController } from "./controllers/DiscussionController.js";
+import { DiscussionEngine } from "./services/DiscussionEngine.js";
+import { DiscussionSessionController } from "./controllers/DiscussionSessionController.js";
+import { SessionLifecycle } from "./lifecycle/SessionLifecycle.js";
+import { AISessionLifecycle } from "./lifecycle/AISessionLifecycle.js";
+import { ModeratorStrategy } from "./moderator/ModeratorStrategy.js";
+import { AIModeratorStrategy } from "./moderator/AIModeratorStrategy.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
 import { createMessageRouter } from "./routes/message.js";
 import { createPanelistRouter } from "./routes/panelist.js";
@@ -22,6 +30,12 @@ export interface AppDependencies {
   aiService: AIService;
   /** Panelist generator service. Created from aiService + repos when not injected. */
   panelistGenerator: PanelistGenerator;
+  /** Moderator strategy for AI-powered moderator behaviour. */
+  moderatorStrategy: ModeratorStrategy;
+  /** Session lifecycle for AI-powered session boundaries. */
+  sessionLifecycle: SessionLifecycle;
+  /** Session controller for discussion execution. */
+  discussionSessionController: DiscussionSessionController;
 }
 
 /**
@@ -64,8 +78,60 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
       panelistRepository,
     });
 
-  // Discussion routes
-  app.use("/api/discussions", createDiscussionRouter(discussionRepository));
+  // Moderator Strategy — resolve injected or create from available deps
+  const moderatorStrategy =
+    dependencies?.moderatorStrategy ??
+    new AIModeratorStrategy({
+      aiService,
+      discussionRepository,
+      panelistRepository,
+    });
+
+  // Session Lifecycle — resolve injected or create from available deps
+  const sessionLifecycle =
+    dependencies?.sessionLifecycle ??
+    new AISessionLifecycle({
+      moderator: moderatorStrategy,
+      messageRepository,
+    });
+
+  // Execution hierarchy — controllers and engine
+  const roundController = new RoundController({
+    discussionRepository,
+    messageRepository,
+    panelistRepository,
+    aiService,
+  });
+
+  const discussionController = new DiscussionController({
+    roundController,
+    panelistRepository,
+  });
+
+  const discussionEngine = new DiscussionEngine({
+    discussionController,
+    discussionRepository,
+    panelistRepository,
+  });
+
+  // Session controller — resolve injected or create from available deps
+  const discussionSessionController =
+    dependencies?.discussionSessionController ??
+    new DiscussionSessionController({
+      discussionEngine,
+      discussionRepository,
+      lifecycle: sessionLifecycle,
+    });
+
+  // Discussion routes — with start endpoint support
+  app.use(
+    "/api/discussions",
+    createDiscussionRouter(
+      discussionRepository,
+      discussionSessionController,
+      panelistRepository,
+    ),
+  );
 
   // Message routes (scoped under a discussion)
   app.use(
