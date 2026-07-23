@@ -363,3 +363,289 @@ The domain foundation is in place for future milestones to populate these fields
 
 **Next milestone:**
 Populate the new Message metadata during discussion execution while preserving backward compatibility.
+
+---
+
+# Phase 2 — Message Metadata Population
+
+**Stage:** Implementation Phase — Milestone 13 Phase 2
+
+**Date:** 2026-07-23
+
+---
+
+## Objective
+
+Phase 1 introduced the Message metadata foundation (`panelistId`, `kind`,
+`replyToMessageId`) into the domain model, but no production code populated them.
+All three fields defaulted to `null` for every message.
+
+Phase 2 begins populating metadata **only where the existing producer already
+possesses sufficient information** — without new plumbing, without architectural
+changes, and without modifying discussion execution behaviour.
+
+---
+
+## Design Review
+
+A full design review was conducted before implementation. The review identified
+every existing `MessageRepository.create()` call site, determined which metadata
+each producer can authoritatively own, and defined a minimal scope that avoids
+touching any orchestration component.
+
+The design report is preserved at `docs/MILESTONE_13_PHASE_2_DESIGN_REPORT.md`.
+
+Key design decisions:
+
+- `replyToMessageId` is **not populated** anywhere in Phase 2. The current
+  round-robin architecture feeds the AI a flat conversation history; there is no
+  mechanism to identify which specific prior message triggered a response.
+  Reply-target semantics require `SpeakingRequest` and are deferred.
+
+- Host/moderator `kind` is **not populated** in Phase 2. The current
+  architecture cannot distinguish `moderator_opening`, `moderator_call`, or
+  `moderator_closing`.  That distinction requires `ModeratorStrategy` and is
+  deferred.
+
+- The HTTP POST route is **not modified**.  `panelistId`, `kind`, and
+  `replyToMessageId` are service-generated trusted metadata.  The HTTP trust
+  boundary must not accept them as identity claims from untrusted clients.
+
+---
+
+## Producer Analysis
+
+Three production producers and one HTTP route were examined.
+
+### RoundController (`backend/src/controllers/RoundController.ts`)
+
+`RoundController.executeTurn()` already loads and validates the `Panelist`
+object before calling `AIService.generate()`. It has:
+
+- `panelist.id` — the executing panelist's identity.
+- `panelist.role` — `"host"` or `"expert"`.
+
+**Decision:** Populate `panelistId` for all panelists.  Populate `kind` as
+`"expert_statement"` when `panelist.role === "expert"`.  Leave `kind` `null` for
+hosts — the current architecture cannot determine which moderator conversational
+function applies.
+
+### TemplateSessionLifecycle (`backend/src/lifecycle/TemplateSessionLifecycle.ts`)
+
+`onSessionStart` and `onSessionEnd` create fixed-template lifecycle boundary
+markers. They have:
+
+- No panelist — the lifecycle itself is the conceptual author.
+- Unambiguous conversational function — these are system-generated lifecycle
+  notifications.
+
+**Decision:** Populate `kind: "system_notification"` on both messages. Leave
+`panelistId` and `replyToMessageId` as `null` — no panelist owns these messages
+and they are not replies.
+
+### HTTP POST route (`backend/src/routes/message.ts`)
+
+The `POST /api/discussions/:discussionId/messages` handler creates messages from
+untrusted client input. It has:
+
+- `role` and `content` from the request body — validated but not trusted for
+  metadata claims.
+- No panelist identity — the HTTP client is not a panelist.
+- No conversational function knowledge.
+
+**Decision:** Not modified. All three metadata fields remain `null` by default.
+This respects the trust boundary established in Phase 1.
+
+---
+
+## Implementation Changes
+
+### RoundController
+
+**File:** `backend/src/controllers/RoundController.ts`
+
+The `messageRepo.create()` call in `executeTurn()` was extended with two new
+properties:
+
+```ts
+const createdMessage = await this.messageRepo.create({
+  discussionId,
+  role: "assistant",
+  content: response.content,
+  panelistId: panelist.id,                                      // ← added
+  kind: panelist.role === "expert" ? "expert_statement" : null, // ← added
+});
+```
+
+- `panelistId` is populated for **all** panelist turns — both host and expert.
+- `kind` is `"expert_statement"` for expert panelists only.
+- Host `kind` remains `null`.  Without `ModeratorStrategy`, the RoundController
+  cannot distinguish moderator opening, moderator call, or moderator closing.
+  Setting the wrong `kind` would be worse than leaving it `null`.
+
+The `panelist` object was already loaded and validated (discussion existence,
+panelist existence, ownership match, active status) before this call. No new
+repository lookups or validation were added.
+
+### TemplateSessionLifecycle
+
+**File:** `backend/src/lifecycle/TemplateSessionLifecycle.ts`
+
+Both `onSessionStart` and `onSessionEnd` `messageRepo.create()` calls gained one
+new property:
+
+```ts
+kind: "system_notification",
+```
+
+These messages are unambiguously system-generated lifecycle boundary markers.
+They have no panelist author (`panelistId` remains `null`) and are not replies
+(`replyToMessageId` remains `null`).
+
+The fixed Chinese template content is unchanged:
+- Start: `"讨论环节已开始。主持人将引导专家围绕话题展开讨论。"`
+- End: `"讨论环节已结束。"`
+
+---
+
+## Preserved Boundaries
+
+No discussion execution behaviour was changed. The following components received
+**zero modifications**:
+
+| Component | File | Reason |
+|---|---|---|
+| `DiscussionEngine` | `services/DiscussionEngine.ts` | Does not create Messages. Orchestrates rounds only. |
+| `DiscussionSessionController` | `controllers/DiscussionSessionController.ts` | Does not create Messages. Orchestrates lifecycle + engine. |
+| `DiscussionController` | `controllers/DiscussionController.ts` | Does not create Messages. Delegates to `RoundController`. |
+| `PromptBuilder` | `ai/PromptBuilder.ts` | Builds `AIMessage[]`, not domain `Message` objects. |
+| `AIService` / `MockAIService` / `DeepSeekAIService` | `ai/` | No domain Message involvement. |
+| HTTP routes | `routes/message.ts`, `routes/discussion.ts`, `routes/panelist.ts` | Trust boundary — no metadata passes through POST; GET routes automatically include new fields. |
+| `PanelistRepository` | `repositories/` | Not involved in Message creation. |
+| `SessionLifecycle` interface | `lifecycle/SessionLifecycle.ts` | Interface unchanged — `TemplateSessionLifecycle` populates `kind` internally. |
+| `InMemoryMessageRepository` | `repositories/InMemoryMessageRepository.ts` | Already handled the new fields via `?? null` from Phase 1. |
+| `Message` domain | `domain/message.ts` | Unchanged from Phase 1. |
+
+Round-robin execution, flat conversation history, and fixed panelist ordering
+are all preserved. Phase 2 changes **what metadata is recorded**, not **how
+discussion turns execute**.
+
+---
+
+## Testing
+
+### Verification Performed
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` (backend) | ✅ Passed (0 errors) |
+| `npx vitest run` (backend) | ✅ 14 test files passed / 281 tests passed |
+
+### Test Count
+
+**281 tests** across 14 test files, all passing. (Previously 280 tests across
+14 test files; +1 new test for host-panelist `kind` behaviour.)
+
+### Test Changes
+
+| File | Change |
+|---|---|
+| `round-controller.test.ts` | Updated "returns a created assistant Message" to assert `panelistId`, `kind: "expert_statement"`, and `replyToMessageId: null`. Added new test: "sets panelistId for host panelists and leaves kind null" (+1 test). |
+| `template-session-lifecycle.test.ts` | Updated `onSessionStart` and `onSessionEnd` "creates a message with role assistant" tests to also assert `kind: "system_notification"`, `panelistId: null`, `replyToMessageId: null`. |
+| `message.test.ts` | Updated comment on "existing message-producing flows receive null defaults" test to reflect that the RoundController path no longer omits these fields. The repository default-behaviour test remains valid for the HTTP POST route and any future legacy producers. |
+
+No test fixtures in `discussion-controller.test.ts`, `discussion-engine.test.ts`,
+`discussion-session-controller.test.ts`, or `prompt-builder.test.ts` required
+changes — their stub/helper `Message` objects already carry `null` metadata
+which remains valid.
+
+---
+
+## Files Modified (Phase 2)
+
+### Production Files
+
+| File | Change |
+|---|---|
+| `backend/src/controllers/RoundController.ts` | Populated `panelistId` and `kind` in `messageRepo.create()` call (+2 lines) |
+| `backend/src/lifecycle/TemplateSessionLifecycle.ts` | Populated `kind: "system_notification"` in both `create()` calls (+2 lines) |
+
+### Test Files
+
+| File | Change |
+|---|---|
+| `backend/src/tests/round-controller.test.ts` | Updated assertions + new host-panelist test (+15 lines) |
+| `backend/src/tests/template-session-lifecycle.test.ts` | Updated assertions for metadata fields (+6 lines) |
+| `backend/src/tests/message.test.ts` | Updated comment on repository default-behaviour test (+4 lines) |
+
+### Documentation
+
+| File | Change |
+|---|---|
+| `docs/MILESTONE_13_PHASE_2_DESIGN_REPORT.md` | New file — full Phase 2 design report |
+| `prompts/14_Message_Attribution.md` | This section appended (Phase 2 history) |
+
+---
+
+## What Remains Deferred
+
+The metadata fields that remain `null` after Phase 2 are **correctly null** —
+they represent information the current architecture genuinely does not possess:
+
+| Field | Where | Reason |
+|---|---|---|
+| `kind` | Host/moderator messages | Requires `ModeratorStrategy` to distinguish opening/call/closing |
+| `replyToMessageId` | All messages | Requires `SpeakingRequest` reply-target semantics |
+| All three fields | HTTP POST route | Trust boundary — client cannot assert metadata |
+
+---
+
+## Future Work
+
+Future milestones may introduce components that will populate the remaining
+metadata fields:
+
+- **ModeratorStrategy** — will produce moderator messages with correct
+  `kind` values (`"moderator_opening"`, `"moderator_call"`,
+  `"moderator_closing"`) and their moderator `panelistId`.
+
+- **SpeakingRequest** / **NextSpeakerSelector** — will provide reply-target
+  semantics, enabling `replyToMessageId` population when an expert responds
+  to a specific prior statement.
+
+- **ReactionEvaluator** — will consume `MessageKind` to distinguish messages
+  that trigger reactions (expert statements) from those that do not (system
+  notifications, moderator bridges).
+
+- **TurnScheduler** — will select the next speaker from competing
+  `SpeakingRequest` candidates.
+
+These components are designed and documented in
+`docs/MILESTONE_13_DESIGN_PROPOSAL.md`. They are not yet implemented. Phase 2
+does not introduce, partially implement, or prepare for any of them beyond
+ensuring the domain fields they will populate are already carrying real data
+where the current architecture permits.
+
+---
+
+## Phase 2 Summary
+
+**Milestone 13 Phase 2 completed successfully.**
+
+Phase 2 populated two of the three Message metadata fields introduced in
+Phase 1 — `panelistId` and `kind` — from the existing producers that already
+possess sufficient information. `replyToMessageId` remains correctly `null`
+everywhere, pending reply-target semantics in future milestones.
+
+Two production files were modified (4 lines total). Five test files received
+targeted updates. Zero architectural changes. Zero orchestration changes.
+The fixed round-robin discussion execution is unchanged.
+
+The transcript now carries per-message panelist attribution and conversational
+function metadata for every message where the current architecture can determine
+them authoritatively.
+
+Phase 1 + Phase 2 together provide the domain foundation and initial metadata
+population that future adversarial-discussion components (`ModeratorStrategy`,
+`ReactionEvaluator`, `SpeakingRequest`, `TurnScheduler`, `NextSpeakerSelector`)
+will build upon.

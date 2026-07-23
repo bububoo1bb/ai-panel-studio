@@ -135,7 +135,7 @@ describe("RoundController", () => {
   // Normal flow
   // ----------------------------------------------------------------
   describe("executeTurn (happy path)", () => {
-    it("returns a created assistant Message", async () => {
+    it("returns a created assistant Message with panelistId and kind populated", async () => {
       const { controller, discussionRepo, panelistRepo } = buildController();
       const discussion = await seedDiscussion(discussionRepo);
       const panelist = await seedPanelist(panelistRepo, { discussionId: discussion.id });
@@ -147,6 +147,9 @@ describe("RoundController", () => {
 
       expect(message).toHaveProperty("id");
       expect(message.role).toBe("assistant");
+      expect(message.panelistId).toBe(panelist.id);
+      expect(message.kind).toBe("expert_statement");
+      expect(message.replyToMessageId).toBeNull();
     });
 
     it("persists the generated AI content", async () => {
@@ -346,6 +349,29 @@ describe("RoundController", () => {
 
       expect(reloaded).toBeDefined();
       expect(reloaded).toEqual(snapshot);
+    });
+
+    it("sets panelistId for host panelists and leaves kind null", async () => {
+      const { controller, discussionRepo, panelistRepo } = buildController({
+        content: "Welcome everyone to today's discussion.",
+      });
+      const discussion = await seedDiscussion(discussionRepo);
+      const host = await seedPanelist(panelistRepo, {
+        discussionId: discussion.id,
+        role: "host",
+        name: "Moderator Zhang",
+        occupation: "Professional Moderator",
+        title: "Session Moderator",
+        stance: "Neutral facilitator",
+      });
+
+      const message = await controller.executeTurn({
+        discussionId: discussion.id,
+        panelistId: host.id,
+      });
+
+      expect(message.panelistId).toBe(host.id);
+      expect(message.kind).toBeNull();
     });
 
     it("returns the exact Message produced by MessageRepository.create()", async () => {

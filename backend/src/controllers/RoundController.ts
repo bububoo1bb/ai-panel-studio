@@ -95,6 +95,8 @@ export class RoundController {
       discussionId,
       role: "assistant",
       content: response.content,
+      panelistId: panelist.id,
+      kind: panelist.role === "expert" ? "expert_statement" : null,
     });
 
     // 9. Return the created Message

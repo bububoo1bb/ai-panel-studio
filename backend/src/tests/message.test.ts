@@ -510,7 +510,12 @@ describe("Message API", () => {
     });
 
     it("existing message-producing flows receive null defaults", async () => {
-      // Simulates the RoundController path: create() without new fields
+      // Verifies repository-level default behaviour: when a caller omits the
+      // new metadata fields, the repository defaults them to null.  This
+      // covers the HTTP POST route and any legacy producer that does not yet
+      // populate the fields.  (RoundController and TemplateSessionLifecycle
+      // now populate fields explicitly — their behaviour is tested in their
+      // own test files.)
       const repo = new InMemoryMessageRepository();
       const msg = await repo.create({
         discussionId,

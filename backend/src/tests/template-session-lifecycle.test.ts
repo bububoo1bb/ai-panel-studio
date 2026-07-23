@@ -20,10 +20,13 @@ describe("TemplateSessionLifecycle", () => {
   // ── onSessionStart ──────────────────────────────────────────
 
   describe("onSessionStart", () => {
-    it("creates a message with role assistant", async () => {
+    it("creates a message with role assistant and system_notification kind", async () => {
       const messages = await lifecycle.onSessionStart({ discussionId });
       expect(messages).toHaveLength(1);
       expect(messages[0].role).toBe("assistant");
+      expect(messages[0].kind).toBe("system_notification");
+      expect(messages[0].panelistId).toBeNull();
+      expect(messages[0].replyToMessageId).toBeNull();
     });
 
     it("creates a message with non-empty content", async () => {
@@ -57,10 +60,13 @@ describe("TemplateSessionLifecycle", () => {
   // ── onSessionEnd ────────────────────────────────────────────
 
   describe("onSessionEnd", () => {
-    it("creates a message with role assistant", async () => {
+    it("creates a message with role assistant and system_notification kind", async () => {
       const messages = await lifecycle.onSessionEnd({ discussionId });
       expect(messages).toHaveLength(1);
       expect(messages[0].role).toBe("assistant");
+      expect(messages[0].kind).toBe("system_notification");
+      expect(messages[0].panelistId).toBeNull();
+      expect(messages[0].replyToMessageId).toBeNull();
     });
 
     it("creates a message with the correct discussionId", async () => {

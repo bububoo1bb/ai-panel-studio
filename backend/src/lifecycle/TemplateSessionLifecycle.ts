@@ -28,6 +28,7 @@ export class TemplateSessionLifecycle implements SessionLifecycle {
       discussionId: context.discussionId,
       role: "assistant",
       content: "讨论环节已开始。主持人将引导专家围绕话题展开讨论。",
+      kind: "system_notification",
     });
     return [message];
   }
@@ -39,6 +40,7 @@ export class TemplateSessionLifecycle implements SessionLifecycle {
       discussionId: context.discussionId,
       role: "assistant",
       content: "讨论环节已结束。",
+      kind: "system_notification",
     });
     return [message];
   }
