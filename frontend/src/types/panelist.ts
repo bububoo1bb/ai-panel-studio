@@ -6,7 +6,7 @@
 export type PanelistRole = "host" | "expert";
 
 /** The current state of a panelist during a discussion. */
-export type PanelistStatus = "waiting" | "preparing" | "speaking" | "finished";
+export type PanelistStatus = "waiting" | "raising_hand" | "preparing" | "speaking" | "finished";
 
 /** A panelist (host or expert) participating in a discussion. */
 export interface Panelist {
@@ -24,6 +24,12 @@ export interface Panelist {
   title: string;
   /** The panelist's stance or viewpoint on the topic. */
   stance: string;
+  /** Core beliefs (1-2 sentences). */
+  beliefs: string | null;
+  /** Specific concerns (1-2 sentences). */
+  concerns: string | null;
+  /** Argumentation style. */
+  argumentStyle: string | null;
   /** A CSS-compatible color used as a visual identifier. */
   color: string;
   /** Current state in the discussion lifecycle. */
@@ -34,11 +40,16 @@ export interface Panelist {
   publicSummary: string | null;
   /** ISO 8601 timestamp of when the panelist was created. */
   createdAt: string;
+  /** ISO 8601 timestamp of last speaking turn, null if never spoken. */
+  lastSpokeAt: string | null;
+  /** Number of speaking turns completed so far. */
+  speakCount: number;
 }
 
 /** UI label mapping for panelist statuses (Chinese). */
 export const PANELIST_STATUS_LABELS: Record<PanelistStatus, string> = {
   waiting: "待机",
+  raising_hand: "举手",
   preparing: "准备中",
   speaking: "发言中",
   finished: "已完成",

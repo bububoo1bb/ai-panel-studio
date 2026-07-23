@@ -24,18 +24,22 @@ export function buildPanelistGenerationSystemPrompt(): string {
     "- occupation: profession or field (Chinese)",
     "- title: specific job title or role description (Chinese)",
     "- stance: concise statement of their position on the topic, 1 sentence (Chinese)",
+    "- beliefs: core convictions driving this expert, 1-2 sentences (Chinese) — for experts only",
+    "- concerns: specific worries or fears about the topic, 1-2 sentences (Chinese) — for experts only",
+    '- argumentStyle: debate style, one of "数据驱动","激进反驳","温和建设","质疑批判","实践经验" (Chinese) — for experts only',
     "",
     "Requirements:",
     "- The host must be neutral, skilled at facilitation,",
     '  with stance "中立，引导讨论深入"',
     "- Experts must represent genuinely different perspectives on the topic",
     "- Each expert's stance must be distinct — avoid overlapping positions",
+    "- 至少2组专家之间存在直接对立的立场——确保讨论有真实的观点碰撞",
     "- Names must be realistic Chinese names (2-3 characters for given name)",
     "- Occupations and titles must be specific, not generic",
     "- All text must be in Chinese",
     "",
     "Example output format:",
-    '[{"role":"host","name":"林澜","occupation":"主持人","title":"圆桌讨论主持人","stance":"中立，引导讨论深入"},{"role":"expert","name":"张明远","occupation":"经济学家","title":"宏观经济学家","stance":"支持市场化解决方案推动产业升级"}]',
+    '[{"role":"host","name":"林澜","occupation":"主持人","title":"圆桌讨论主持人","stance":"中立，引导讨论深入"},{"role":"expert","name":"张明远","occupation":"经济学家","title":"宏观经济学家","stance":"支持市场化解决方案推动产业升级","beliefs":"市场机制是最有效的资源配置方式","concerns":"政府过度干预可能导致效率下降","argumentStyle":"数据驱动"}]',
   ].join("\n");
 }
 
@@ -79,22 +83,36 @@ export function buildPanelistGenerationMessages(input: {
  * professional perspective while adhering to behavioural constraints.
  */
 export function buildPanelistSystemPrompt(panelist: Panelist): string {
-  return [
-    `You are ${panelist.name}, a ${panelist.role === "host" ? "moderator" : "panel expert"} in a roundtable discussion.`,
+  const lines = [
+    `你是${panelist.name}，一名${panelist.role === "host" ? "主持人" : "圆桌讨论专家"}。`,
     "",
-    `- Occupation: ${panelist.occupation}`,
-    `- Title: ${panelist.title}`,
-    `- Stance: ${panelist.stance}`,
+    `- 职业领域：${panelist.occupation}`,
+    `- 职务/身份：${panelist.title}`,
+    `- 立场：${panelist.stance}`,
+  ];
+
+  if (panelist.role === "expert") {
+    if (panelist.beliefs) lines.push(`- 核心信念：${panelist.beliefs}`);
+    if (panelist.concerns) lines.push(`- 关注问题：${panelist.concerns}`);
+    if (panelist.argumentStyle) lines.push(`- 辩论风格：${panelist.argumentStyle}`);
+  }
+
+  lines.push(
     "",
-    "Behavioural requirements:",
-    "- Respond from your assigned professional perspective.",
-    "- Maintain your stated stance consistently.",
-    "- Engage directly with the discussion topic and prior messages.",
-    "- Be concise and substantive.",
-    "- Do not fabricate facts; openly acknowledge uncertainty when appropriate.",
-    "- Output only your public response — never reveal private chain-of-thought,",
-    "  hidden reasoning, or internal analysis.",
-  ].join("\n");
+    "发言要求（非常重要——这是圆桌讨论，不是论文答辩）：",
+    "- 每次发言严格1-2句话，30-80个中文字符，最多不超过150字符",
+    "- 你不是在写文章——你是在真人圆桌前脱口而出",
+    "- 必须针对上一位发言者的核心观点进行直接回应（支持/补充/质疑/反驳）",
+    "- 保持鲜明的个人立场，不要'一方面...另一方面...'式的和稀泥",
+    "- 用口语化的语气表达专业观点",
+    "- 除首次发言外，禁止重复自我介绍——大家已经知道你是谁了",
+    "- 直接进入观点，不要以'我是XXX'或'作为XXX'开头",
+    "- 禁止任何动作描写（推眼镜、沉思、笑、点头、清嗓子）",
+    "- 禁止\"第一第二第三\"、\"综上所述\"、\"总而言之\"等论文结构",
+    "- 禁止输出你的内部推理过程——只输出你的公开发言",
+  );
+
+  return lines.join("\n");
 }
 
 /**
@@ -242,4 +260,71 @@ export function buildModeratorClosingMessages(input: {
       content: buildModeratorClosingPrompt(input),
     },
   ];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Moderator Intervention Prompts (M16.5)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Build the system prompt for the moderator's mid-discussion intervention.
+ *
+ * The prompt instructs the moderator to bridge between rounds of expert
+ * discussion — highlighting emerging themes, noting disagreements, and
+ * guiding the conversation toward productive exploration.
+ */
+export function buildModeratorInterventionPrompt(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+}): string {
+  return [
+    `你是${input.hostName}，${input.hostTitle}，本次圆桌讨论的主持人。`,
+    "",
+    `关于"${input.topic}"的讨论正在进行中。`,
+    "",
+    "你的任务：在专家们进行了几轮发言后，进行一次简短的中场干预。",
+    "",
+    "要求：",
+    "- 简要总结刚才讨论中浮现的关键主题和立场分歧",
+    "- 你的职责是发现分歧、邀请不同观点的专家回应、控制讨论节奏",
+    "- 如果某位专家长时间未发言，主动邀请其参与",
+    "- 如果两位专家观点对立，请他们分别阐述立场",
+    "- 保持中立——不要选边站队",
+    "- 控制在2-4句话，精炼有力",
+    "- 只输出你的公开干预发言——不要暴露任何内部推理过程",
+    "- 用口语化的方式表达——像真人主持人在引导讨论",
+  ].join("\n");
+}
+
+/**
+ * Build the AI message list for the moderator's mid-discussion intervention.
+ *
+ * Returns an array with one system message (the intervention instructions)
+ * and the full conversation history so the moderator can reference recent
+ * exchanges.
+ */
+export function buildModeratorInterventionMessages(input: {
+  hostName: string;
+  hostTitle: string;
+  topic: string;
+  recentMessages: Array<{ role: "user" | "assistant"; content: string }>;
+}): AIMessage[] {
+  const result: AIMessage[] = [
+    {
+      role: "system",
+      content: buildModeratorInterventionPrompt(input),
+    },
+  ];
+
+  // Include recent conversation history so the moderator can reference
+  // specific expert statements
+  for (const msg of input.recentMessages) {
+    result.push({
+      role: msg.role,
+      content: msg.content,
+    });
+  }
+
+  return result;
 }

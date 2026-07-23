@@ -47,6 +47,28 @@ export interface ModeratorStrategy {
   openDiscussion(discussionId: string): Promise<ModeratorMessage>;
 
   /**
+   * Generate a mid-discussion moderator intervention.
+   *
+   * Called between rounds to bridge expert statements, highlight
+   * emerging themes, note disagreements, and guide the discussion
+   * toward deeper exploration.
+   *
+   * @param discussionId - The discussion to intervene in.
+   * @param recentMessages - Recent transcript messages for context
+   *   (role + content only, not full Message objects).
+   *
+   * The implementation should:
+   * - Load the discussion, host, and use provided messages for context
+   * - Build an intervention prompt that references recent exchanges
+   * - Call the AI service
+   * - Return content + metadata (NOT a persisted Message)
+   */
+  intervene(
+    discussionId: string,
+    recentMessages: Array<{ role: "user" | "assistant"; content: string }>,
+  ): Promise<ModeratorMessage>;
+
+  /**
    * Generate the moderator's closing statement.
    *
    * The implementation should:

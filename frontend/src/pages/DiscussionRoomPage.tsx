@@ -24,7 +24,7 @@ import { useParams, Link } from "react-router-dom";
 import type { Discussion } from "../types/discussion.js";
 import type { Panelist } from "../types/panelist.js";
 import type { Message } from "../types/message.js";
-import { fetchDiscussion, startDiscussion } from "../api/discussionApi.js";
+import { fetchDiscussion, startDiscussion, stopDiscussion, fetchInsights, type InsightData } from "../api/discussionApi.js";
 import { fetchPanelists } from "../api/panelistApi.js";
 import { fetchMessages } from "../api/messageApi.js";
 import { ExpertPanel } from "../components/discussion/ExpertPanel.js";
@@ -34,7 +34,7 @@ import styles from "./DiscussionRoomPage.module.css";
 
 type PageState = "loading" | "error" | "ready";
 /** Discussion execution state — separate from page load state. */
-type ExecutionState = "idle" | "running" | "finished";
+type ExecutionState = "idle" | "running" | "stopped" | "finished";
 
 export default function DiscussionRoomPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +46,7 @@ export default function DiscussionRoomPage() {
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [executionState, setExecutionState] = useState<ExecutionState>("idle");
   const [executionError, setExecutionError] = useState<string | null>(null);
+  const [insights, setInsights] = useState<InsightData>({ consensus: [], divergence: [] });
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
@@ -74,6 +75,8 @@ export default function DiscussionRoomPage() {
       // Determine execution state from discussion status
       if (disc.status === "finished") {
         setExecutionState("finished");
+      } else if (disc.status === "stopped") {
+        setExecutionState("stopped");
       } else if (msgs.length > 0) {
         // Discussion is active with messages — may be mid-execution
         // (page refresh during a running discussion)
@@ -110,6 +113,20 @@ export default function DiscussionRoomPage() {
     }
   }, [id]);
 
+  // ── Stop discussion handler ──────────────────────────────────
+  const handleStop = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      await stopDiscussion(id);
+      setExecutionState("stopped");
+    } catch (err) {
+      setExecutionError(
+        err instanceof Error ? err.message : "停止讨论失败",
+      );
+    }
+  }, [id]);
+
   // ── M16 TEMPORARY: HTTP polling for transcript updates ──────
   // Replaced by SSE event streaming in a future milestone.
   // The polling logic is isolated in this single useEffect.
@@ -118,13 +135,17 @@ export default function DiscussionRoomPage() {
 
     const poll = async () => {
       try {
-        const [disc, msgs] = await Promise.all([
+        const [disc, panels, msgs, insightData] = await Promise.all([
           fetchDiscussion(id),
+          fetchPanelists(id),
           fetchMessages(id),
+          fetchInsights(id).catch(() => ({ consensus: [], divergence: [] })),
         ]);
 
         setDiscussion(disc);
+        setPanelists(panels);
         setMessages(msgs);
+        setInsights(insightData);
 
         // Update active speaker
         if (msgs.length > 0) {
@@ -132,9 +153,11 @@ export default function DiscussionRoomPage() {
           setActiveSpeakerId(lastMsg.panelistId);
         }
 
-        // Check if discussion has finished
+        // Check if discussion has finished or been stopped
         if (disc.status === "finished") {
           setExecutionState("finished");
+        } else if (disc.status === "stopped") {
+          setExecutionState("stopped");
         }
       } catch {
         // Polling failure is silent — retry on next interval
@@ -189,6 +212,11 @@ export default function DiscussionRoomPage() {
           ← 返回
         </Link>
         <h1 className={styles.topic}>{discussion?.title ?? "讨论演播厅"}</h1>
+        {executionState === "running" && discussion?.durationLimit && (
+          <span className={styles.timer}>
+            {Math.floor(discussion.durationLimit / 60)}:00
+          </span>
+        )}
         <div className={styles.topRight}>
           {executionState === "idle" && (
             <button
@@ -200,7 +228,18 @@ export default function DiscussionRoomPage() {
             </button>
           )}
           {executionState === "running" && (
-            <span className={styles.onAir}>● ON AIR</span>
+            <>
+              <span className={styles.onAir}>● ON AIR</span>
+              <button
+                className={styles.stopButton}
+                onClick={handleStop}
+              >
+                停止讨论
+              </button>
+            </>
+          )}
+          {executionState === "stopped" && (
+            <span className={styles.stoppedBadge}>讨论已停止</span>
           )}
           {executionState === "finished" && (
             <span className={styles.finishedBadge}>讨论已结束</span>
@@ -240,6 +279,8 @@ export default function DiscussionRoomPage() {
 
         <aside className={styles.right}>
           <InsightPanel
+            consensus={insights.consensus}
+            divergence={insights.divergence}
             discussionStatus={discussion?.status}
           />
         </aside>

@@ -4,6 +4,7 @@ export type PanelistRole = "host" | "expert";
 /** The current state of a panelist during a discussion. */
 export type PanelistStatus =
   | "waiting"
+  | "raising_hand"
   | "preparing"
   | "speaking"
   | "finished";
@@ -24,6 +25,12 @@ export interface Panelist {
   title: string;
   /** The panelist's stance or viewpoint on the topic. */
   stance: string;
+  /** Core beliefs driving this expert's worldview (1-2 sentences, Chinese). */
+  beliefs: string | null;
+  /** Specific concerns or fears related to the topic (1-2 sentences, Chinese). */
+  concerns: string | null;
+  /** Argumentation style, e.g. "数据驱动", "激进反驳", "温和建设". */
+  argumentStyle: string | null;
   /** A CSS-compatible color used as a visual identifier. */
   color: string;
   /** Current state in the discussion lifecycle. */
@@ -34,6 +41,10 @@ export interface Panelist {
   publicSummary: string | null;
   /** ISO 8601 timestamp of when the panelist was created. */
   createdAt: string;
+  /** ISO 8601 timestamp of last speaking turn, null if never spoken. */
+  lastSpokeAt: string | null;
+  /** Number of speaking turns completed so far. */
+  speakCount: number;
 }
 
 /** The data required to create a new Panelist. */
@@ -45,4 +56,10 @@ export interface CreatePanelistInput {
   title: string;
   stance: string;
   color: string;
+  /** Core beliefs (1-2 sentences, Chinese). */
+  beliefs?: string | null;
+  /** Specific concerns (1-2 sentences, Chinese). */
+  concerns?: string | null;
+  /** Argumentation style. */
+  argumentStyle?: string | null;
 }

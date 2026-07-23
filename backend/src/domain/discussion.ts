@@ -1,5 +1,5 @@
 /** The lifecycle status of a discussion. */
-export type DiscussionStatus = "active" | "finished";
+export type DiscussionStatus = "active" | "finished" | "stopped" | "paused";
 
 /** A roundtable discussion. */
 export interface Discussion {
@@ -11,9 +11,13 @@ export interface Discussion {
   status: DiscussionStatus;
   /** ISO 8601 timestamp of when the discussion was created. */
   createdAt: string;
+  /** Duration limit in seconds (60/180/300), default 300. */
+  durationLimit: number;
 }
 
 /** The data required to create a new Discussion. */
 export interface CreateDiscussionInput {
   title: string;
+  /** Duration limit in seconds (60/180/300), default 300. */
+  durationLimit?: number;
 }

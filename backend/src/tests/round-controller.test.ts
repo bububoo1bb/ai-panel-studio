@@ -538,6 +538,10 @@ describe("RoundController", () => {
       async findByDiscussionId(discussionId: string): Promise<Panelist[]> {
         return this.delegate.findByDiscussionId(discussionId);
       }
+
+      async update(_id: string, _changes: Partial<Pick<Panelist, "status" | "currentFocus" | "publicSummary" | "lastSpokeAt" | "speakCount">>): Promise<Panelist> {
+        throw new Error("update not implemented in stub");
+      }
     }
 
     it("throws 'Panelist is not active' for a finished panelist", async () => {
@@ -558,11 +562,16 @@ describe("RoundController", () => {
         occupation: "Economist",
         title: "Retired Economist",
         stance: "Was once optimistic",
+        beliefs: null,
+        concerns: null,
+        argumentStyle: null,
         color: "#999999",
         status: "finished",
         currentFocus: null,
         publicSummary: null,
         createdAt: new Date().toISOString(),
+        lastSpokeAt: null,
+        speakCount: 0,
       };
 
       const stubRepo = new FinishedPanelistStubRepository(realPanelistRepo, finishedPanelist);

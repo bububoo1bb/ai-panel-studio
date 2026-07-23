@@ -17,6 +17,7 @@ function sampleDiscussion(overrides: Partial<Discussion> = {}): Discussion {
     title: "The future of renewable energy",
     status: "active",
     createdAt: "2026-07-22T00:00:00.000Z",
+    durationLimit: 300,
     ...overrides,
   };
 }
@@ -30,11 +31,16 @@ function samplePanelist(overrides: Partial<Panelist> = {}): Panelist {
     occupation: "Energy Economist",
     title: "Chief Economist at GreenFuture Institute",
     stance: "Market-based carbon pricing is the most efficient path to net-zero",
+    beliefs: null,
+    concerns: null,
+    argumentStyle: null,
     color: "#4A90D9",
     status: "waiting",
     currentFocus: null,
     publicSummary: null,
     createdAt: "2026-07-22T00:00:00.000Z",
+    lastSpokeAt: null,
+    speakCount: 0,
     ...overrides,
   };
 }
@@ -85,10 +91,10 @@ describe("buildPanelistSystemPrompt", () => {
 
   it("includes the panelist role", () => {
     const expert = buildPanelistSystemPrompt(samplePanelist({ role: "expert" }));
-    expect(expert).toContain("panel expert");
+    expect(expert).toContain("圆桌讨论专家");
 
     const host = buildPanelistSystemPrompt(samplePanelist({ role: "host" }));
-    expect(host).toContain("moderator");
+    expect(host).toContain("主持人");
   });
 
   it("includes the panelist occupation", () => {
@@ -116,14 +122,14 @@ describe("buildPanelistSystemPrompt", () => {
 
   it("instructs the model to output only a public response", () => {
     const prompt = buildPanelistSystemPrompt(samplePanelist());
-    expect(prompt).toContain("Output only your public response");
+    expect(prompt).toContain("只输出你的公开发言");
   });
 
   it("prohibits private chain-of-thought disclosure", () => {
     const prompt = buildPanelistSystemPrompt(samplePanelist());
-    expect(prompt).toContain("never reveal private chain-of-thought");
-    expect(prompt).toContain("hidden reasoning");
-    expect(prompt).toContain("internal analysis");
+    expect(prompt).toContain("禁止输出你的内部推理过程");
+    expect(prompt).toContain("不是在写文章");
+    expect(prompt).toContain("禁止任何动作描写");
   });
 });
 

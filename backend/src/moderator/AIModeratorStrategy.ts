@@ -4,6 +4,7 @@ import { PanelistRepository } from "../repositories/PanelistRepository.js";
 import {
   buildModeratorOpeningMessages,
   buildModeratorClosingMessages,
+  buildModeratorInterventionMessages,
 } from "../ai/PromptBuilder.js";
 import { ModeratorStrategy, ModeratorMessage } from "./ModeratorStrategy.js";
 
@@ -85,6 +86,50 @@ export class AIModeratorStrategy implements ModeratorStrategy {
       content: response.content,
       panelistId: host.id,
       kind: "moderator_opening",
+    };
+  }
+
+  /**
+   * Generate a mid-discussion moderator intervention.
+   *
+   * 1. Load the discussion and panelists
+   * 2. Find the host panelist (throws if absent)
+   * 3. Build the intervention prompt with recent messages
+   * 4. Call the AI and return ModeratorMessage data (NOT persisted)
+   */
+  async intervene(
+    discussionId: string,
+    recentMessages: Array<{ role: "user" | "assistant"; content: string }>,
+  ): Promise<ModeratorMessage> {
+    // 1. Load discussion
+    const discussion = await this.discussionRepo.findById(discussionId);
+    if (!discussion) {
+      throw new Error("Discussion not found");
+    }
+
+    // 2. Load panelists and find host
+    const panelists = await this.panelistRepo.findByDiscussionId(discussionId);
+    const host = panelists.find((p) => p.role === "host");
+    if (!host) {
+      throw new Error("No moderator found for this discussion");
+    }
+
+    // 3. Build intervention messages with context
+    const aiMessages = buildModeratorInterventionMessages({
+      hostName: host.name,
+      hostTitle: host.title,
+      topic: discussion.title,
+      recentMessages,
+    });
+
+    // 4. Call AI
+    const response = await this.aiService.generate({ messages: aiMessages });
+
+    // 5. Return ModeratorMessage (caller persists)
+    return {
+      content: response.content,
+      panelistId: host.id,
+      kind: "moderator_call",
     };
   }
 

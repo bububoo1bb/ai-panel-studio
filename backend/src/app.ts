@@ -9,14 +9,19 @@ import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepos
 import { AIService } from "./ai/AIService.js";
 import { MockAIService } from "./ai/MockAIService.js";
 import { PanelistGenerator } from "./services/PanelistGenerator.js";
+import { InsightAnalyzer } from "./services/InsightAnalyzer.js";
 import { RoundController } from "./controllers/RoundController.js";
 import { DiscussionController } from "./controllers/DiscussionController.js";
+import { DynamicDiscussionController } from "./controllers/DynamicDiscussionController.js";
 import { DiscussionEngine } from "./services/DiscussionEngine.js";
 import { DiscussionSessionController } from "./controllers/DiscussionSessionController.js";
 import { SessionLifecycle } from "./lifecycle/SessionLifecycle.js";
 import { AISessionLifecycle } from "./lifecycle/AISessionLifecycle.js";
 import { ModeratorStrategy } from "./moderator/ModeratorStrategy.js";
 import { AIModeratorStrategy } from "./moderator/AIModeratorStrategy.js";
+import { SimpleReactionEvaluator } from "./scheduling/ReactionEvaluator.js";
+import { DesireBasedScheduler } from "./scheduling/DesireBasedScheduler.js";
+import { AIModeratorController } from "./scheduling/ModeratorController.js";
 import { createDiscussionRouter } from "./routes/discussion.js";
 import { createMessageRouter } from "./routes/message.js";
 import { createPanelistRouter } from "./routes/panelist.js";
@@ -36,6 +41,8 @@ export interface AppDependencies {
   sessionLifecycle: SessionLifecycle;
   /** Session controller for discussion execution. */
   discussionSessionController: DiscussionSessionController;
+  /** Insight analyzer for consensus/divergence analysis. */
+  insightAnalyzer: InsightAnalyzer;
 }
 
 /**
@@ -103,16 +110,53 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
     aiService,
   });
 
+  // Round-robin controller (fallback)
   const discussionController = new DiscussionController({
     roundController,
     panelistRepository,
   });
 
+  // ── Dynamic scheduling components (M16.5) ────────────────────
+  const reactionEvaluator = new SimpleReactionEvaluator();
+  const speakingScheduler = new DesireBasedScheduler({
+    evaluator: reactionEvaluator,
+    panelistRepository,
+    messageRepository,
+    discussionRepository,
+  });
+  const moderatorController = new AIModeratorController({
+    panelistRepository,
+    messageRepository,
+    discussionRepository,
+  });
+
+  // Dynamic controller (active by default)
+  const dynamicDiscussionController = new DynamicDiscussionController({
+    roundController,
+    panelistRepository,
+    messageRepository,
+    discussionRepository,
+    scheduler: speakingScheduler,
+    moderator: moderatorController,
+  });
+
+  const USE_DYNAMIC = process.env.DYNAMIC_SCHEDULING !== "false";
+  const activeController = USE_DYNAMIC ? dynamicDiscussionController : discussionController;
+
   const discussionEngine = new DiscussionEngine({
-    discussionController,
+    discussionController: activeController,
     discussionRepository,
     panelistRepository,
   });
+
+  // Insight Analyzer — for live consensus/divergence analysis
+  const insightAnalyzer =
+    dependencies?.insightAnalyzer ??
+    new InsightAnalyzer({
+      aiService,
+      discussionRepository,
+      messageRepository,
+    });
 
   // Session controller — resolve injected or create from available deps
   const discussionSessionController =
@@ -121,15 +165,19 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
       discussionEngine,
       discussionRepository,
       lifecycle: sessionLifecycle,
+      messageRepository,
+      moderatorStrategy,
     });
 
-  // Discussion routes — with start endpoint support
+  // Discussion routes — with start, stop, pause, and insights endpoints
   app.use(
     "/api/discussions",
     createDiscussionRouter(
       discussionRepository,
       discussionSessionController,
       panelistRepository,
+      insightAnalyzer,
+      messageRepository,
     ),
   );
 

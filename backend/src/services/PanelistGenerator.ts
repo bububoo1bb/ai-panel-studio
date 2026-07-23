@@ -144,6 +144,21 @@ export class PanelistGenerator {
       this.validateAndConvert(raw, index, discussionId),
     );
 
+    // ── 6a. Validate count: must have exactly 1 host + expertCount experts ──
+    const hostCount = inputs.filter((i) => i.role === "host").length;
+    const expertCountActual = inputs.filter((i) => i.role === "expert").length;
+
+    if (hostCount !== 1) {
+      throw new Error(
+        `Expected exactly 1 host, but got ${hostCount}. The AI generated an incorrect panel — please retry.`,
+      );
+    }
+    if (expertCountActual !== expertCount) {
+      throw new Error(
+        `Expected ${expertCount} experts, but got ${expertCountActual}. The AI generated an incorrect count — please retry.`,
+      );
+    }
+
     // ── 7. Assign system colors ─────────────────────────────────
     const coloredInputs = inputs.map((input, index) => ({
       ...input,
@@ -211,6 +226,25 @@ export class PanelistGenerator {
       );
     }
 
+    // beliefs (required for experts, optional for host)
+    if (raw.role === "expert") {
+      if (typeof raw.beliefs !== "string" || raw.beliefs.trim().length === 0) {
+        throw new Error(
+          `${prefix}: beliefs must be a non-empty string`,
+        );
+      }
+      if (typeof raw.concerns !== "string" || raw.concerns.trim().length === 0) {
+        throw new Error(
+          `${prefix}: concerns must be a non-empty string`,
+        );
+      }
+      if (typeof raw.argumentStyle !== "string" || raw.argumentStyle.trim().length === 0) {
+        throw new Error(
+          `${prefix}: argumentStyle must be a non-empty string`,
+        );
+      }
+    }
+
     return {
       discussionId,
       role: raw.role,
@@ -218,6 +252,9 @@ export class PanelistGenerator {
       occupation: raw.occupation.trim(),
       title: raw.title.trim(),
       stance: raw.stance.trim(),
+      beliefs: typeof raw.beliefs === "string" ? raw.beliefs.trim() : undefined,
+      concerns: typeof raw.concerns === "string" ? raw.concerns.trim() : undefined,
+      argumentStyle: typeof raw.argumentStyle === "string" ? raw.argumentStyle.trim() : undefined,
     };
   }
 }

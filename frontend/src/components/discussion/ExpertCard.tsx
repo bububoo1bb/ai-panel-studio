@@ -41,6 +41,20 @@ export function ExpertCard({ panelist, isActive = false }: ExpertCardProps) {
         </span>
       </div>
 
+      {panelist.beliefs && (
+        <p className={styles.beliefs}>
+          <span className={styles.label}>信念</span>
+          {panelist.beliefs}
+        </p>
+      )}
+
+      {panelist.concerns && (
+        <p className={styles.concerns}>
+          <span className={styles.label}>关切</span>
+          {panelist.concerns}
+        </p>
+      )}
+
       {panelist.publicSummary && (
         <p className={styles.summary}>{panelist.publicSummary}</p>
       )}

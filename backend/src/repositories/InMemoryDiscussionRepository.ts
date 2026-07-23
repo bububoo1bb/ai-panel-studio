@@ -18,6 +18,7 @@ export class InMemoryDiscussionRepository implements DiscussionRepository {
       title: input.title,
       status: "active",
       createdAt: new Date().toISOString(),
+      durationLimit: input.durationLimit ?? 300,
     };
     this.discussions.push(discussion);
     return discussion;

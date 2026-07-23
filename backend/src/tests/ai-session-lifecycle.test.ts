@@ -13,6 +13,7 @@ import { Message } from "../domain/message.js";
 class StubModeratorStrategy implements ModeratorStrategy {
   openCalled = false;
   closeCalled = false;
+  interveneCalled = false;
   openDiscussionId = "";
   closeDiscussionId = "";
   openingMessage: ModeratorMessage = {
@@ -25,11 +26,24 @@ class StubModeratorStrategy implements ModeratorStrategy {
     panelistId: "host-1",
     kind: "moderator_closing",
   };
+  interventionMessage: ModeratorMessage = {
+    content: "让我们深入探讨这个问题。",
+    panelistId: "host-1",
+    kind: "moderator_call",
+  };
 
   async openDiscussion(discussionId: string): Promise<ModeratorMessage> {
     this.openCalled = true;
     this.openDiscussionId = discussionId;
     return this.openingMessage;
+  }
+
+  async intervene(
+    _discussionId: string,
+    _recentMessages: Array<{ role: "user" | "assistant"; content: string }>,
+  ): Promise<ModeratorMessage> {
+    this.interveneCalled = true;
+    return this.interventionMessage;
   }
 
   async closeDiscussion(discussionId: string): Promise<ModeratorMessage> {
@@ -41,6 +55,13 @@ class StubModeratorStrategy implements ModeratorStrategy {
 
 class FailingModeratorStrategy implements ModeratorStrategy {
   async openDiscussion(_discussionId: string): Promise<ModeratorMessage> {
+    throw new Error("AI service unavailable");
+  }
+
+  async intervene(
+    _discussionId: string,
+    _recentMessages: Array<{ role: "user" | "assistant"; content: string }>,
+  ): Promise<ModeratorMessage> {
     throw new Error("AI service unavailable");
   }
 

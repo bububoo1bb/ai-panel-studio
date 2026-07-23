@@ -17,6 +17,9 @@ export interface RawGeneratedPanelist {
   occupation: unknown;
   title: unknown;
   stance: unknown;
+  beliefs: unknown;
+  concerns: unknown;
+  argumentStyle: unknown;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Panelist, CreatePanelistInput } from "../domain/panelist.js";
+import { Panelist, CreatePanelistInput, PanelistStatus } from "../domain/panelist.js";
 import { PanelistRepository } from "./PanelistRepository.js";
 
 /**
@@ -21,11 +21,16 @@ export class InMemoryPanelistRepository implements PanelistRepository {
       occupation: input.occupation,
       title: input.title,
       stance: input.stance,
+      beliefs: input.beliefs ?? null,
+      concerns: input.concerns ?? null,
+      argumentStyle: input.argumentStyle ?? null,
       color: input.color,
       status: "waiting",
       currentFocus: null,
       publicSummary: null,
       createdAt: new Date().toISOString(),
+      lastSpokeAt: null,
+      speakCount: 0,
     };
     this.panelists.push(panelist);
     return panelist;
@@ -39,5 +44,26 @@ export class InMemoryPanelistRepository implements PanelistRepository {
   async findByDiscussionId(discussionId: string): Promise<Panelist[]> {
     // Return a shallow copy filtered by discussionId in insertion order.
     return this.panelists.filter((p) => p.discussionId === discussionId);
+  }
+
+  async update(
+    id: string,
+    changes: Partial<Pick<Panelist, "status" | "currentFocus" | "publicSummary" | "lastSpokeAt" | "speakCount">>,
+  ): Promise<Panelist> {
+    const index = this.panelists.findIndex((p) => p.id === id);
+    if (index === -1) {
+      throw new Error("Panelist not found");
+    }
+    const existing = this.panelists[index];
+    const updated: Panelist = {
+      ...existing,
+      status: (changes.status as PanelistStatus) ?? existing.status,
+      currentFocus: changes.currentFocus !== undefined ? changes.currentFocus : existing.currentFocus,
+      publicSummary: changes.publicSummary !== undefined ? changes.publicSummary : existing.publicSummary,
+      lastSpokeAt: changes.lastSpokeAt !== undefined ? changes.lastSpokeAt : existing.lastSpokeAt,
+      speakCount: changes.speakCount !== undefined ? changes.speakCount : existing.speakCount,
+    };
+    this.panelists[index] = updated;
+    return updated;
   }
 }

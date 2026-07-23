@@ -15,4 +15,10 @@ export interface PanelistRepository {
 
   /** Return every Panelist belonging to the given discussion in insertion order. */
   findByDiscussionId(discussionId: string): Promise<Panelist[]>;
+
+  /** Update mutable fields of an existing Panelist. */
+  update(
+    id: string,
+    changes: Partial<Pick<Panelist, "status" | "currentFocus" | "publicSummary" | "lastSpokeAt" | "speakCount">>,
+  ): Promise<Panelist>;
 }

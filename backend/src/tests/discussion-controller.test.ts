@@ -371,6 +371,9 @@ describe("DiscussionController", () => {
             p.id === finishedPanelist.id ? { ...p, status: "finished" as const } : p,
           );
         },
+        update: async (_id, _changes) => {
+          throw new Error("update not implemented in stub");
+        },
       };
 
       const controllerWithStub = new DiscussionController({
@@ -427,6 +430,7 @@ describe("DiscussionController", () => {
               ? { ...p, status: "finished" as const }
               : p,
           ),
+        update: async () => { throw new Error("not implemented"); },
       };
 
       const discussionController = new DiscussionController({
@@ -599,6 +603,7 @@ describe("DiscussionController", () => {
               ? { ...p, status: "finished" as const }
               : p,
           ),
+        update: async () => { throw new Error("not implemented"); },
       };
 
       const discussionController = new DiscussionController({
@@ -665,6 +670,7 @@ describe("DiscussionController", () => {
         findById: (id) => panelistRepo.findById(id),
         findByDiscussionId: async () =>
           panelists.map((p) => ({ ...p, status: "finished" as const })),
+        update: async () => { throw new Error("not implemented"); },
       };
 
       const discussionController = new DiscussionController({

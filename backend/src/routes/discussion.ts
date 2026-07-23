@@ -1,7 +1,10 @@
 import { Router, Request, Response } from "express";
 import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
+import { MessageRepository } from "../repositories/MessageRepository.js";
 import { DiscussionSessionController } from "../controllers/DiscussionSessionController.js";
+import { InsightAnalyzer } from "../services/InsightAnalyzer.js";
+import { RuleBasedInsightAnalyzer } from "../scheduling/RuleBasedInsightAnalyzer.js";
 
 /**
  * Create an Express router for Discussion endpoints.
@@ -12,11 +15,16 @@ import { DiscussionSessionController } from "../controllers/DiscussionSessionCon
  * When `discussionSessionController` and `panelistRepository` are both
  * provided, the `POST /:id/start` endpoint is mounted for discussion
  * execution.
+ *
+ * When `insightAnalyzer` is provided, the `GET /:id/insights` endpoint
+ * is mounted for live consensus/divergence analysis.
  */
 export function createDiscussionRouter(
   repository: DiscussionRepository,
   discussionSessionController?: DiscussionSessionController,
   panelistRepository?: PanelistRepository,
+  insightAnalyzer?: InsightAnalyzer,
+  messageRepository?: MessageRepository,
 ): Router {
   const router = Router();
 
@@ -28,7 +36,7 @@ export function createDiscussionRouter(
 
   // POST /api/discussions — create a new discussion
   router.post("/", async (req: Request, res: Response) => {
-    const { title } = req.body;
+    const { title, durationLimit } = req.body;
 
     // Validate: title must be a non-empty string after trimming
     if (title === undefined || title === null || typeof title !== "string") {
@@ -42,7 +50,20 @@ export function createDiscussionRouter(
       return;
     }
 
-    const discussion = await repository.create({ title: trimmed });
+    // Validate durationLimit (optional, must be 60/180/300 if provided)
+    let validDuration: number | undefined;
+    if (durationLimit !== undefined && durationLimit !== null) {
+      if (typeof durationLimit !== "number" || ![60, 180, 300].includes(durationLimit)) {
+        res.status(400).json({ error: "durationLimit must be 60, 180, or 300" });
+        return;
+      }
+      validDuration = durationLimit;
+    }
+
+    const discussion = await repository.create({
+      title: trimmed,
+      durationLimit: validDuration,
+    });
     res.status(201).json(discussion);
   });
 
@@ -54,6 +75,61 @@ export function createDiscussionRouter(
       return;
     }
     res.json(discussion);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // POST /:id/stop — stop a running discussion
+  // ─────────────────────────────────────────────────────────────
+  router.post("/:id/stop", async (req: Request, res: Response) => {
+    const discussionId = req.params.id;
+
+    try {
+      const discussion = await repository.findById(discussionId);
+      if (!discussion) {
+        res.status(404).json({ error: "Discussion not found" });
+        return;
+      }
+      if (discussion.status !== "active") {
+        res.status(409).json({
+          error: `Discussion is already ${discussion.status}`,
+        });
+        return;
+      }
+
+      await repository.updateStatus(discussionId, "stopped");
+      res.json({ status: "stopped", discussionId });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to stop discussion";
+      console.error("Discussion stop error:", message);
+      res.status(500).json({ error: "Failed to stop discussion" });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // POST /:id/pause — pause a running discussion
+  // ─────────────────────────────────────────────────────────────
+  router.post("/:id/pause", async (req: Request, res: Response) => {
+    const discussionId = req.params.id;
+
+    try {
+      const discussion = await repository.findById(discussionId);
+      if (!discussion) {
+        res.status(404).json({ error: "Discussion not found" });
+        return;
+      }
+      if (discussion.status !== "active") {
+        res.status(409).json({
+          error: `Cannot pause — discussion is ${discussion.status}`,
+        });
+        return;
+      }
+
+      await repository.updateStatus(discussionId, "paused");
+      res.json({ status: "paused", discussionId });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to pause discussion" });
+    }
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -142,6 +218,45 @@ export function createDiscussionRouter(
       }
     });
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // GET /:id/insights — live consensus & divergence analysis
+  // ─────────────────────────────────────────────────────────────
+  router.get("/:id/insights", async (req: Request, res: Response) => {
+    const discussionId = req.params.id;
+
+    try {
+      const discussion = await repository.findById(discussionId);
+      if (!discussion) {
+        res.status(404).json({ error: "Discussion not found" });
+        return;
+      }
+
+      // Use rule-based analysis when panelist + message repos available
+      if (panelistRepository && messageRepository) {
+        const panelists = await panelistRepository.findByDiscussionId(discussionId);
+        const messages = await messageRepository.findByDiscussionId(discussionId);
+        const ruleAnalyzer = new RuleBasedInsightAnalyzer();
+        const insights = ruleAnalyzer.analyze(panelists, messages);
+        res.json(insights);
+        return;
+      }
+
+      // Fallback to AI-based analysis
+      if (insightAnalyzer) {
+        const insights = await insightAnalyzer.analyze(discussionId);
+        res.json(insights);
+        return;
+      }
+
+      res.json({ consensus: [], divergence: [] });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Insight analysis failed";
+      console.error("Insight analysis error:", message);
+      res.status(500).json({ error: "Insight analysis failed" });
+    }
+  });
 
   return router;
 }

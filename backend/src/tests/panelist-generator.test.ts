@@ -11,7 +11,7 @@ import { Discussion } from "../domain/discussion.js";
 // Helpers
 // ═══════════════════════════════════════════════════════════════
 
-/** A valid panel of 1 host + 2 experts in JSON. */
+/** A valid panel of 1 host + 2 experts in JSON with all required fields. */
 const VALID_PANEL_JSON = JSON.stringify([
   {
     role: "host",
@@ -26,6 +26,9 @@ const VALID_PANEL_JSON = JSON.stringify([
     occupation: "经济学家",
     title: "宏观经济学家",
     stance: "支持市场化解决方案推动产业升级",
+    beliefs: "市场机制是最有效的资源配置方式",
+    concerns: "政府过度干预可能导致效率下降和创新不足",
+    argumentStyle: "数据驱动",
   },
   {
     role: "expert",
@@ -33,6 +36,9 @@ const VALID_PANEL_JSON = JSON.stringify([
     occupation: "技术专家",
     title: "AI 研究员",
     stance: "强调技术创新驱动产业发展",
+    beliefs: "技术进步是解决社会问题的根本途径",
+    concerns: "技术发展速度可能超过社会适应能力",
+    argumentStyle: "温和建设",
   },
 ]);
 
@@ -160,7 +166,7 @@ describe("PanelistGenerator.generate()", () => {
     const panelists = await generator.generate({
       discussionId: discussion.id,
       topic: discussion.title,
-      expertCount: 3,
+      expertCount: 2,
     });
 
     for (const p of panelists) {
@@ -372,7 +378,7 @@ describe("PanelistGenerator.generate()", () => {
 
     // expertCount validation expects >= 2 experts, but we only have 1 entry
     // in the mock — this tests trimming on the one entry we have.
-    // Use a mock that returns 1 host + 1 expert to pass count validation.
+    // Use a mock that returns 1 host + 2 experts to match expertCount=2
     const validPadded = new MockAIService({
       content: JSON.stringify([
         {
@@ -388,6 +394,19 @@ describe("PanelistGenerator.generate()", () => {
           occupation: "  经济学家  ",
           title: "  宏观经济学家  ",
           stance: "  支持市场化  ",
+          beliefs: "  市场机制最优  ",
+          concerns: "  干预导致低效  ",
+          argumentStyle: "  数据驱动  ",
+        },
+        {
+          role: "expert",
+          name: "  李思涵  ",
+          occupation: "  技术专家  ",
+          title: "  AI 研究员  ",
+          stance: "  技术创新驱动  ",
+          beliefs: "  技术是根本  ",
+          concerns: "  技术发展过快  ",
+          argumentStyle: "  温和建设  ",
         },
       ]),
     });
@@ -407,6 +426,11 @@ describe("PanelistGenerator.generate()", () => {
     expect(panelists[0].occupation).toBe("主持人");
     expect(panelists[0].title).toBe("圆桌讨论主持人");
     expect(panelists[0].stance).toBe("中立，引导讨论深入");
+    // Also verify second expert trimming
+    expect(panelists[2].name).toBe("李思涵");
+    expect(panelists[2].occupation).toBe("技术专家");
+    expect(panelists[2].title).toBe("AI 研究员");
+    expect(panelists[2].stance).toBe("技术创新驱动");
   });
 
   it("calls AIService.generate with correct messages", async () => {

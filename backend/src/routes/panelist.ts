@@ -138,6 +138,13 @@ export function createPanelistRouter(
           return;
         }
 
+        // Prevent duplicate generation — panelists are immutable once generated
+        const existingPanelists = await panelistRepository.findByDiscussionId(discussionId);
+        if (existingPanelists.length > 0) {
+          res.status(409).json({ error: "Panelists already generated for this discussion" });
+          return;
+        }
+
         const { expertCount } = req.body ?? {};
 
         // Validate expertCount

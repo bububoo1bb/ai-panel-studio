@@ -20,6 +20,7 @@ function makeDiscussion(
     title: "The future of renewable energy",
     status: "active",
     createdAt: new Date().toISOString(),
+    durationLimit: 300,
     ...overrides,
   };
 }
@@ -36,11 +37,16 @@ function makePanelist(
     occupation: "Energy Economist",
     title: "Chief Economist at GreenFuture Institute",
     stance: "Market-based carbon pricing is the most efficient path to net-zero",
+    beliefs: null,
+    concerns: null,
+    argumentStyle: null,
     color: "#4A90D9",
     status: "waiting",
     currentFocus: null,
     publicSummary: null,
     createdAt: new Date().toISOString(),
+    lastSpokeAt: null,
+    speakCount: 0,
     ...overrides,
   };
 }
@@ -247,6 +253,10 @@ class StubPanelistRepository implements PanelistRepository {
     // Return shallow copies so callers can't mutate internal state
     return this.current.map((p) => ({ ...p }));
   }
+
+  async update(_id: string, _changes: Partial<Pick<Panelist, "status" | "currentFocus" | "publicSummary" | "lastSpokeAt" | "speakCount">>): Promise<Panelist> {
+    throw new Error("StubPanelistRepository.update() not implemented");
+  }
 }
 
 /**
@@ -264,6 +274,10 @@ class FailingPanelistRepository implements PanelistRepository {
   }
 
   async findById(_id: string): Promise<Panelist | null> {
+    throw new Error(this.errorMessage);
+  }
+
+  async update(_id: string, _changes: Partial<Pick<Panelist, "status" | "currentFocus" | "publicSummary" | "lastSpokeAt" | "speakCount">>): Promise<Panelist> {
     throw new Error(this.errorMessage);
   }
 
@@ -676,12 +690,8 @@ describe("DiscussionEngine", () => {
 
       let findByDiscussionIdCallCount = 0;
       const panelistRepo: PanelistRepository = {
-        create: async () => {
-          throw new Error("not implemented");
-        },
-        findById: async () => {
-          throw new Error("not implemented");
-        },
+        create: async () => { throw new Error("not implemented"); },
+        findById: async () => { throw new Error("not implemented"); },
         findByDiscussionId: async (_discussionId: string) => {
           findByDiscussionIdCallCount++;
           if (findByDiscussionIdCallCount === 1) {
@@ -689,6 +699,7 @@ describe("DiscussionEngine", () => {
           }
           return allFinished.map((p) => ({ ...p }));
         },
+        update: async () => { throw new Error("not implemented"); },
       };
 
       const controller = new StubDiscussionController(
@@ -713,16 +724,13 @@ describe("DiscussionEngine", () => {
     it("reloads panelist state before every round", async () => {
       const callLog: string[] = [];
       const panelistRepo: PanelistRepository = {
-        create: async () => {
-          throw new Error("not implemented");
-        },
-        findById: async () => {
-          throw new Error("not implemented");
-        },
+        create: async () => { throw new Error("not implemented"); },
+        findById: async () => { throw new Error("not implemented"); },
         findByDiscussionId: async (discussionId: string) => {
           callLog.push(discussionId);
           return [makePanelist()];
         },
+        update: async () => { throw new Error("not implemented"); },
       };
 
       const controller = new StubDiscussionController(

@@ -29,6 +29,7 @@ function makeDiscussion(id: string, status: DiscussionStatus = "active"): Discus
     title: "Test Discussion",
     status,
     createdAt: "2024-01-01T00:00:00.000Z",
+    durationLimit: 300,
   };
 }
 

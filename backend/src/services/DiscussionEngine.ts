@@ -1,4 +1,3 @@
-import { DiscussionController } from "../controllers/DiscussionController.js";
 import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
 import { Message } from "../domain/message.js";
@@ -16,31 +15,39 @@ export interface RunDiscussionRequest {
 }
 
 /**
+ * Interface for a round executor — the component that runs one
+ * "round" of discussion (which may produce 0, 1, or N messages).
+ *
+ * Both {@link DiscussionController} (round-robin, all experts per round)
+ * and {@link DynamicDiscussionController} (one selected expert per round)
+ * implement this interface.
+ */
+export interface DiscussionRoundExecutor {
+  executeDiscussion(input: { discussionId: string }): Promise<Message[]>;
+}
+
+/**
  * Application-layer service that orchestrates multiple discussion rounds.
  *
  * Responsibilities:
  * - Validate `maxRounds` as a positive finite integer
  * - Loop sequentially up to `maxRounds`
- * - Before every round: reload discussion → stop if finished;
+ * - Before every round: reload discussion → stop if not active;
  *   reload panelists → stop if none active
- * - Delegate each round to {@link DiscussionController}
+ * - Delegate each round to a {@link DiscussionRoundExecutor}
  * - Collect and return all generated {@link Message}s in execution order
  *
  * DiscussionEngine depends only on the abstractions required for
- * orchestration. It does not call AIService, PromptBuilder, or
- * MessageRepository directly.
- *
- * This milestone is orchestration only. The engine does not mutate
- * discussion or panelist statuses, does not persist engine state, and
- * does not introduce cancellation, resume, or retry semantics.
+ * orchestration. It does NOT know about ReactionEvaluator,
+ * SpeakingScheduler, ModeratorController, or any scheduling concepts.
  */
 export class DiscussionEngine {
-  private readonly discussionController: DiscussionController;
+  private readonly discussionController: DiscussionRoundExecutor;
   private readonly discussionRepo: DiscussionRepository;
   private readonly panelistRepo: PanelistRepository;
 
   constructor(deps: {
-    discussionController: DiscussionController;
+    discussionController: DiscussionRoundExecutor;
     discussionRepository: DiscussionRepository;
     panelistRepository: PanelistRepository;
   }) {
@@ -89,7 +96,7 @@ export class DiscussionEngine {
       if (discussion === null) {
         throw new Error("Discussion not found");
       }
-      if (discussion.status === "finished") {
+      if (discussion.status !== "active") {
         break;
       }
 

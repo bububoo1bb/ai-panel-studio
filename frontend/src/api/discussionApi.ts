@@ -27,12 +27,19 @@ export async function fetchDiscussion(id: string): Promise<Discussion> {
   return res.json();
 }
 
-/** Create a new discussion with the given title. */
-export async function createDiscussion(title: string): Promise<Discussion> {
+/** Create a new discussion with the given title and optional duration. */
+export async function createDiscussion(
+  title: string,
+  durationLimit?: number,
+): Promise<Discussion> {
+  const body: Record<string, unknown> = { title };
+  if (durationLimit !== undefined && durationLimit !== null) {
+    body.durationLimit = durationLimit;
+  }
   const res = await fetch(API_BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -55,6 +62,33 @@ export async function startDiscussion(
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Failed to start discussion: ${res.status}`);
   }
+}
+
+/** Stop a running discussion. */
+export async function stopDiscussion(discussionId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${discussionId}/stop`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Failed to stop discussion: ${res.status}`);
+  }
+}
+
+/** Insights returned by the backend analysis endpoint. */
+export interface InsightData {
+  consensus: string[];
+  divergence: string[];
+}
+
+/** Fetch live consensus and divergence analysis. */
+export async function fetchInsights(discussionId: string): Promise<InsightData> {
+  const res = await fetch(`${API_BASE}/${discussionId}/insights`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Failed to fetch insights: ${res.status}`);
+  }
+  return res.json();
 }
 
 // ─────────────────────────────────────────────────────────────

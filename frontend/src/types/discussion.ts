@@ -3,7 +3,7 @@
  */
 
 /** The lifecycle status of a discussion. */
-export type DiscussionStatus = "active" | "finished";
+export type DiscussionStatus = "active" | "finished" | "stopped" | "paused";
 
 /** A roundtable discussion. */
 export interface Discussion {
@@ -15,6 +15,8 @@ export interface Discussion {
   status: DiscussionStatus;
   /** ISO 8601 timestamp of when the discussion was created. */
   createdAt: string;
+  /** Duration limit in seconds (60/180/300). */
+  durationLimit: number;
 }
 
 /** UI-specific display state for a discussion card. */
@@ -26,6 +28,10 @@ export function toDisplayStatus(status: DiscussionStatus): DiscussionDisplayStat
     case "active":
       return "running";
     case "finished":
+      return "finished";
+    case "stopped":
+      return "finished";
+    case "paused":
       return "finished";
   }
 }

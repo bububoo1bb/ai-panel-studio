@@ -15,6 +15,7 @@ export function DiscussionForm() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
   const [expertCount, setExpertCount] = useState(4);
+  const [durationLimit, setDurationLimit] = useState<number>(300);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +30,7 @@ export function DiscussionForm() {
     setError(null);
 
     try {
-      const discussion = await createDiscussion(trimmedTopic);
+      const discussion = await createDiscussion(trimmedTopic, durationLimit);
       // Navigate to confirmation, passing expert count for generation
       navigate(`/discussion/${discussion.id}/confirm`, {
         state: { expertCount },
@@ -57,6 +58,24 @@ export function DiscussionForm() {
           autoFocus
         />
         <span className="form-hint">输入一个你想要探讨的话题</span>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="durationLimit" className="form-label">
+          讨论时长
+        </label>
+        <select
+          id="durationLimit"
+          className="form-select"
+          value={durationLimit}
+          onChange={(e) => setDurationLimit(Number(e.target.value))}
+          disabled={submitting}
+        >
+          <option value={60}>1 分钟</option>
+          <option value={180}>3 分钟</option>
+          <option value={300}>5 分钟</option>
+        </select>
+        <span className="form-hint">时间到后主持人将自动总结并结束讨论</span>
       </div>
 
       <div className="form-group">
