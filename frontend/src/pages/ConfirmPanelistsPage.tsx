@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import type { Panelist } from "../types/panelist.js";
-import { generatePanelists } from "../api/panelistApi.js";
+import { generatePanelists, fetchPanelists } from "../api/panelistApi.js";
 import styles from "./ConfirmPanelistsPage.module.css";
 
 export default function ConfirmPanelistsPage() {
@@ -25,27 +25,49 @@ export default function ConfirmPanelistsPage() {
 
   useEffect(() => {
     if (!id) return;
-    const discussionId = id; // narrow for closure
+    const discussionId = id;
 
+    const controller = new AbortController();
     let cancelled = false;
 
     async function load() {
       try {
-        const generated = await generatePanelists(discussionId, expertCount);
+        // Try generating new panelists
+        const generated = await generatePanelists(discussionId, expertCount, controller.signal);
         if (!cancelled) {
           setPanelists(generated);
           setLoading(false);
         }
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "生成嘉宾失败，请重试");
-          setLoading(false);
+        if (cancelled) return;
+        // If panelists already exist, fetch them instead
+        if (err instanceof Error && err.message.includes("already")) {
+          try {
+            const existing = await fetchPanelists(discussionId);
+            if (!cancelled) {
+              setPanelists(existing);
+              setLoading(false);
+            }
+          } catch {
+            if (!cancelled) {
+              setError("加载已有嘉宾失败，请重试");
+              setLoading(false);
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "生成嘉宾失败，请重试");
+            setLoading(false);
+          }
         }
       }
     }
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [id, expertCount]);
 
   const host = panelists.find((p) => p.role === "host");

@@ -82,7 +82,26 @@ export function buildPanelistGenerationMessages(input: {
  * The prompt instructs the model to respond from the panelist's assigned
  * professional perspective while adhering to behavioural constraints.
  */
-export function buildPanelistSystemPrompt(panelist: Panelist): string {
+/**
+ * Discussion context injected into every panelist's system prompt.
+ * Prevents hallucinated experts, invented stances, and references
+ * to panelists who haven't spoken yet.
+ */
+export interface DiscussionAgentContext {
+  /** Names of all participants (host + experts). */
+  participants: string[];
+  /** Names of experts who have already spoken. */
+  spokenExperts: string[];
+  /** Name of the last speaker (null if nobody has spoken yet). */
+  lastSpeaker: string | null;
+  /** Current stances of all experts (name → stance). */
+  currentStances: Record<string, string>;
+}
+
+export function buildPanelistSystemPrompt(
+  panelist: Panelist,
+  agentContext?: DiscussionAgentContext,
+): string {
   const lines = [
     `你是${panelist.name}，一名${panelist.role === "host" ? "主持人" : "圆桌讨论专家"}。`,
     "",
@@ -95,6 +114,24 @@ export function buildPanelistSystemPrompt(panelist: Panelist): string {
     if (panelist.beliefs) lines.push(`- 核心信念：${panelist.beliefs}`);
     if (panelist.concerns) lines.push(`- 关注问题：${panelist.concerns}`);
     if (panelist.argumentStyle) lines.push(`- 辩论风格：${panelist.argumentStyle}`);
+  }
+
+  // ── Agent Context Memory (M16.8) ─────────────────────────────
+  if (agentContext) {
+    lines.push("");
+    lines.push("当前讨论状态：");
+    lines.push(`- 参与专家：${agentContext.participants.join("、")}`);
+    if (agentContext.spokenExperts.length > 0) {
+      lines.push(`- 已发言专家：${agentContext.spokenExperts.join("、")}`);
+    }
+    if (agentContext.lastSpeaker) {
+      lines.push(`- 上一位发言者：${agentContext.lastSpeaker}`);
+    }
+    lines.push("");
+    lines.push("禁止事项：");
+    lines.push("- 禁止引用未发言专家的观点（他们还没有机会表达立场）");
+    lines.push("- 禁止创造不存在的讨论参与者");
+    lines.push("- 禁止假设其他专家持有他们没有表达过的观点");
   }
 
   lines.push(
@@ -130,15 +167,16 @@ export function buildPanelistMessages(input: {
   discussion: Discussion;
   panelist: Panelist;
   messages: Message[];
+  agentContext?: DiscussionAgentContext;
 }): AIMessage[] {
-  const { discussion, panelist, messages } = input;
+  const { discussion, panelist, messages, agentContext } = input;
 
   const result: AIMessage[] = [];
 
   // 1. System message
   result.push({
     role: "system",
-    content: buildPanelistSystemPrompt(panelist),
+    content: buildPanelistSystemPrompt(panelist, agentContext),
   });
 
   // 2. Discussion topic

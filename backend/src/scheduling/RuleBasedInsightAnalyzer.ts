@@ -1,48 +1,39 @@
 import { Panelist } from "../domain/panelist.js";
 import { Message } from "../domain/message.js";
+import { AIService } from "../ai/AIService.js";
 
 /**
- * The result of a rule-based insight analysis.
+ * The result of an AI-powered insight analysis.
  */
 export interface InsightResult {
-  /** Points where experts broadly agree. */
+  /** Points where experts broadly agree (natural language). */
   consensus: string[];
-  /** Points where experts disagree or have conflicting views. */
+  /** Points where experts disagree, with named conflict pairs. */
   divergence: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Agreement / disagreement markers (Chinese)
+// AI-Powered Insight Analyzer (M16.8)
 // ═══════════════════════════════════════════════════════════════
 
-const AGREEMENT_MARKERS = [
-  "同意", "赞同", "支持", "有道理", "确实", "没错",
-  "我也认为", "说得对", "认可", "赞成",
-];
-
-const DISAGREEMENT_MARKERS = [
-  "但是", "然而", "不同意", "反对", "问题在于",
-  "不一定", "并非", "恰恰相反", "我不认为", "值得商榷",
-];
-
 /**
- * Rule-based insight analyzer.
+ * Uses the LLM to analyze the full discussion transcript and produce
+ * structured consensus/divergence output in natural language.
  *
- * Extracts consensus and divergence from panelist stances/beliefs
- * and recent messages — using pure keyword matching without AI calls.
- *
- * Guaranteed to be non-empty when the discussion has ≥2 messages:
- * falls back to generic statements if no explicit patterns are found.
+ * Each divergence item MUST identify the conflicting experts by name
+ * and summarize the core conflict — NOT just copy transcript text.
  */
 export class RuleBasedInsightAnalyzer {
+  private readonly aiService: AIService;
+
+  constructor(deps: { aiService: AIService }) {
+    this.aiService = deps.aiService;
+  }
+
   /**
    * Analyze panelists and messages to produce consensus + divergence.
-   *
-   * @param panelists — must be scoped to a single discussionId.
-   * @param messages — must be scoped to the same discussionId.
    */
-  analyze(panelists: Panelist[], messages: Message[]): InsightResult {
-    // ── Early return: not enough data ─────────────────────────
+  async analyze(panelists: Panelist[], messages: Message[]): Promise<InsightResult> {
     if (messages.length < 2 || panelists.length < 2) {
       return {
         consensus: ["讨论即将开始，专家们正在准备观点"],
@@ -50,91 +41,138 @@ export class RuleBasedInsightAnalyzer {
       };
     }
 
-    // ── Extract stance keywords from all experts ──────────────
     const experts = panelists.filter((p) => p.role === "expert");
-    const stanceTexts = experts.map((e) =>
-      [e.stance, e.beliefs, e.concerns].filter(Boolean).join(" "),
-    );
+    const topic = "roundtable discussion";
 
-    // ── Analyze messages for explicit agreement/disagreement ──
-    const consensusSet = new Set<string>();
-    const divergenceSet = new Set<string>();
+    // ── Build transcript summary ────────────────────────────────
+    const transcriptText = messages
+      .map((m) => {
+        const author = panelists.find((p) => p.id === m.panelistId);
+        const prefix = author ? `${author.name}（${author.role === "host" ? "主持人" : author.title}）` : "系统";
+        return `${prefix}: ${m.content}`;
+      })
+      .join("\n");
 
-    const assistantMessages = messages.filter((m) => m.role === "assistant");
+    // ── Build expert profiles ───────────────────────────────────
+    const expertProfiles = experts
+      .map((e) => `- ${e.name}（${e.title}）：立场=${e.stance}；信念=${e.beliefs ?? ""}；关切=${e.concerns ?? ""}`)
+      .join("\n");
 
-    for (const msg of assistantMessages) {
-      // Check for agreement phrases
-      for (const marker of AGREEMENT_MARKERS) {
-        if (msg.content.includes(marker)) {
-          // Extract the surrounding sentence as the insight
-          const sentence = this.extractSentence(msg.content, marker);
-          if (sentence) consensusSet.add(sentence);
-        }
-      }
+    // ── Build AI prompt ─────────────────────────────────────────
+    const systemPrompt = [
+      "你是一个专业的圆桌讨论分析助手。根据讨论记录和专家背景，分析当前共识与分歧。",
+      "",
+      "输出格式（纯JSON，不要markdown代码块）：",
+      "{",
+      '  "consensus": ["自然语言共识1", "自然语言共识2"],',
+      '  "divergence": [',
+      '    {',
+      '      "expertA": "专家A姓名",',
+      '      "expertB": "专家B姓名",',
+      '      "expertAView": "专家A的核心观点（用自己的话概括，不要直接复制原文）",',
+      '      "expertBView": "专家B的核心观点（用自己的话概括，不要直接复制原文）",',
+      '      "conflict": "核心冲突的一句话总结"',
+      "    }",
+      "  ]",
+      "}",
+      "",
+      "要求：",
+      "- consensus: 专家们明确达成一致的共同观点（自然语言，每条1句话）",
+      "- divergence: 必须识别具体冲突的双方专家，用自己的话概括各自观点",
+      "- 禁止直接复制transcript原文——必须用自己的话提炼",
+      "- 禁止引用未发言专家的观点（expertProfiles中但transcript中未出现的内容仅作背景参考）",
+      "- 如果讨论刚开始尚无明确共识或分歧，返回空数组",
+      "- 最多返回3条consensus和3条divergence",
+    ].join("\n");
 
-      // Check for disagreement phrases
-      for (const marker of DISAGREEMENT_MARKERS) {
-        if (msg.content.includes(marker)) {
-          const sentence = this.extractSentence(msg.content, marker);
-          if (sentence) divergenceSet.add(sentence);
-        }
-      }
+    const userPrompt = [
+      "讨论主题：",
+      topic,
+      "",
+      "专家背景：",
+      expertProfiles,
+      "",
+      "讨论记录：",
+      transcriptText,
+    ].join("\n");
+
+    try {
+      const response = await this.aiService.generate({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      return this.parseAIResponse(response.content);
+    } catch {
+      // AI failed — return rule-based fallback
+      return this.fallbackAnalysis(experts, messages);
     }
-
-    // ── Cross-reference panelist stances ─────────────────────
-    // Compare each pair of stances for shared vs opposing keywords
-    for (let i = 0; i < stanceTexts.length; i++) {
-      for (let j = i + 1; j < stanceTexts.length; j++) {
-        const shared = this.findSharedPhrases(stanceTexts[i], stanceTexts[j]);
-        for (const phrase of shared) {
-          if (phrase.length >= 4) consensusSet.add(`专家们均认为：${phrase}`);
-        }
-      }
-    }
-
-    // ── Build result with fallbacks ───────────────────────────
-    const consensus = consensusSet.size > 0
-      ? Array.from(consensusSet).slice(0, 3)
-      : ["专家们均认可该话题的重要性"];
-
-    const divergence = divergenceSet.size > 0
-      ? Array.from(divergenceSet).slice(0, 3)
-      : ["专家们在具体解决方案上存在不同看法"];
-
-    return { consensus, divergence };
-  }
-
-  // ── Private helpers ─────────────────────────────────────────
-
-  /**
-   * Extract the sentence containing the marker from text.
-   */
-  private extractSentence(text: string, marker: string): string | null {
-    const idx = text.indexOf(marker);
-    if (idx === -1) return null;
-
-    // Find sentence boundaries (Chinese punctuation)
-    const start = Math.max(0, text.lastIndexOf("。", idx) + 1);
-    let end = text.indexOf("。", idx);
-    if (end === -1) end = text.length;
-
-    const sentence = text.slice(start, end).trim();
-    if (sentence.length < 4 || sentence.length > 100) return null;
-    return sentence;
   }
 
   /**
-   * Find shared multi-character phrases between two texts.
+   * Parse AI-generated JSON into InsightResult.
    */
-  private findSharedPhrases(a: string, b: string): string[] {
-    const shared: string[] = [];
-    const minLen = 4;
-    for (let i = 0; i <= a.length - minLen; i++) {
-      const phrase = a.slice(i, i + minLen);
-      if (b.includes(phrase) && phrase.trim().length >= minLen) {
-        shared.push(phrase);
+  private parseAIResponse(content: string): InsightResult {
+    try {
+      let json = content.trim();
+      if (json.startsWith("```")) {
+        json = json.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
       }
+
+      const parsed = JSON.parse(json);
+
+      const divergence = Array.isArray(parsed.divergence)
+        ? parsed.divergence
+            .filter(
+              (d: unknown) =>
+                typeof d === "object" &&
+                d !== null &&
+                typeof (d as Record<string, unknown>).expertA === "string" &&
+                typeof (d as Record<string, unknown>).expertB === "string",
+            )
+            .map((d: Record<string, unknown>) =>
+              [
+                `${d.expertA}认为${d.expertAView ?? ""}`,
+                `${d.expertB}认为${d.expertBView ?? ""}`,
+                `核心冲突：${d.conflict ?? ""}`,
+              ].join("\n"),
+            )
+            .slice(0, 3)
+        : [];
+
+      const consensus = Array.isArray(parsed.consensus)
+        ? (parsed.consensus as string[]).filter(
+            (c: unknown) => typeof c === "string" && c.length > 0,
+          ).slice(0, 3)
+        : [];
+
+      return { consensus, divergence };
+    } catch {
+      return { consensus: [], divergence: [] };
     }
-    return [...new Set(shared)];
+  }
+
+  /**
+   * Rule-based fallback when AI is unavailable.
+   */
+  private fallbackAnalysis(experts: Panelist[], messages: Message[]): InsightResult {
+    const assistantMsgs = messages.filter((m) => m.role === "assistant");
+    const hasDiscussion = assistantMsgs.length >= 3;
+
+    if (!hasDiscussion) {
+      return {
+        consensus: ["讨论正在进行中，专家们正在阐述各自观点"],
+        divergence: [],
+      };
+    }
+
+    return {
+      consensus: ["专家们均认可该话题的重要性，各方从不同角度提出了建设性观点"],
+      divergence: [
+        "专家们在具体解决方案和实施路径上存在不同看法，需要进一步深入讨论",
+      ],
+    };
   }
 }

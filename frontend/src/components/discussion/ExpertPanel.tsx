@@ -22,7 +22,7 @@ export function ExpertPanel({ panelists, activeSpeakerId }: ExpertPanelProps) {
     <div className={styles.panel}>
       <div className={styles.header}>
         <h2 className={styles.title}>嘉宾</h2>
-        <span className={styles.count}>{panelists.length} 人</span>
+        <span className={styles.count}>{experts.length} 人</span>
       </div>
 
       <div className={styles.list}>

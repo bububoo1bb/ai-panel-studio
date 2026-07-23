@@ -79,6 +79,7 @@ export async function stopDiscussion(discussionId: string): Promise<void> {
 export interface InsightData {
   consensus: string[];
   divergence: string[];
+  unresolved?: string[];
 }
 
 /** Fetch live consensus and divergence analysis. */
@@ -87,6 +88,24 @@ export async function fetchInsights(discussionId: string): Promise<InsightData> 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Failed to fetch insights: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Final summary generated after discussion ends. */
+export interface FinalSummary {
+  finalConsensus?: string;
+  coreConflict?: string;
+  expertSummaries?: Array<{ name: string; title: string; position: string }>;
+  moderatorSummary?: string;
+}
+
+/** Fetch final summary after discussion ends. */
+export async function fetchSummary(discussionId: string): Promise<FinalSummary> {
+  const res = await fetch(`${API_BASE}/${discussionId}/summary`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Failed to fetch summary: ${res.status}`);
   }
   return res.json();
 }

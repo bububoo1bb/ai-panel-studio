@@ -2,6 +2,17 @@ import { Router, Request, Response } from "express";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
 import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 import { PanelistGenerator } from "../services/PanelistGenerator.js";
+import { Panelist } from "../domain/panelist.js";
+
+/**
+ * Request-level lock to prevent concurrent duplicate panelist generation
+ * for the same discussion. Keyed by discussionId.
+ *
+ * Fixes TOCTOU race condition where React StrictMode double-mounts
+ * trigger two concurrent POST /generate requests — both passing the
+ * duplicate guard before either has persisted its results.
+ */
+const pendingGenerations = new Map<string, Promise<Panelist[]>>();
 
 /**
  * Create an Express router for Panelist endpoints scoped to a discussion.
@@ -138,7 +149,13 @@ export function createPanelistRouter(
           return;
         }
 
-        // Prevent duplicate generation — panelists are immutable once generated
+        // ── Request-level lock: prevent concurrent generation ──
+        if (pendingGenerations.has(discussionId)) {
+          res.status(409).json({ error: "Panelist generation already in progress" });
+          return;
+        }
+
+        // Prevent duplicate generation
         const existingPanelists = await panelistRepository.findByDiscussionId(discussionId);
         if (existingPanelists.length > 0) {
           res.status(409).json({ error: "Panelists already generated for this discussion" });
@@ -165,13 +182,20 @@ export function createPanelistRouter(
           return;
         }
 
-        const panelists = await panelistGenerator.generate({
+        // ── Execute generation under lock ─────────────────────
+        const generationPromise = panelistGenerator.generate({
           discussionId,
           topic: discussion.title,
           expertCount,
         });
+        pendingGenerations.set(discussionId, generationPromise);
 
-        res.status(201).json(panelists);
+        try {
+          const panelists = await generationPromise;
+          res.status(201).json(panelists);
+        } finally {
+          pendingGenerations.delete(discussionId);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Internal server error";
 

@@ -139,7 +139,7 @@ describe("POST /api/discussions/:id/start", () => {
   // ── Validation ──────────────────────────────────────────────
 
   describe("validation", () => {
-    it("returns 400 when maxRounds is missing", async () => {
+    it("derives maxRounds from durationLimit when not provided", async () => {
       const { app, discussionRepo, panelistRepo } = createTestApp();
       const discussion = await createDiscussion(discussionRepo);
       await createPanelists(panelistRepo, discussion.id);
@@ -148,8 +148,9 @@ describe("POST /api/discussions/:id/start", () => {
         .post(`/api/discussions/${discussion.id}/start`)
         .send({});
 
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain("maxRounds");
+      // maxRounds is now optional — derived from durationLimit (default 300s)
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({ status: "started", discussionId: discussion.id });
     });
 
     it("returns 400 when maxRounds is not a number", async () => {

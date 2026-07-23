@@ -97,15 +97,16 @@ export class DiscussionSessionController {
 
     // ── 4. Run rounds with moderator interventions ──────────────
     const allMessages: Message[] = [...startMessages];
-    const BATCH_SIZE = 2; // rounds per batch before a moderator intervention
+    const BATCH_SIZE = 5;
 
     if (this.moderator && this.messageRepo) {
-      // M16.5 enhanced mode: split rounds into batches with interventions
       let remaining = maxRounds;
       while (remaining > 0) {
+        const current = await this.discussionRepo.findById(discussionId);
+        if (!current || current.status !== "active") break;
+
         const batchRounds = Math.min(BATCH_SIZE, remaining);
 
-        // Run a batch of expert rounds
         const batchMessages = await this.engine.runDiscussion({
           discussionId,
           maxRounds: batchRounds,
@@ -115,11 +116,9 @@ export class DiscussionSessionController {
         remaining -= batchRounds;
         if (remaining <= 0) break;
 
-        // Check discussion status before intervening
-        const current = await this.discussionRepo.findById(discussionId);
-        if (!current || current.status !== "active") break;
+        const recheck = await this.discussionRepo.findById(discussionId);
+        if (!recheck || recheck.status !== "active") break;
 
-        // Insert moderator intervention
         const recentMessages = allMessages.slice(-12).map((m) => ({
           role: m.role,
           content: m.content,

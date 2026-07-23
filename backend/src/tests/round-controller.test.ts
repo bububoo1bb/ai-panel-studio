@@ -207,8 +207,9 @@ describe("RoundController", () => {
       const requests = aiService.getRequests();
       expect(requests).toHaveLength(1);
 
-      // The AI messages should include the conversation messages (after system + topic)
-      const conversationMessages = requests[0].messages.slice(2);
+      // The AI messages should include the conversation messages
+      // (after system + topic + optional last-speaker injection)
+      const conversationMessages = requests[0].messages.slice(3);
       expect(conversationMessages).toHaveLength(2);
       expect(conversationMessages[0].content).toBe("First question");
       expect(conversationMessages[1].content).toBe("First answer");
@@ -234,7 +235,8 @@ describe("RoundController", () => {
       });
 
       const requests = aiService.getRequests();
-      const conversationMessages = requests[0].messages.slice(2);
+      // slice(3) to skip system + topic + last-speaker injection
+      const conversationMessages = requests[0].messages.slice(3);
       expect(conversationMessages).toHaveLength(3);
       expect(conversationMessages[0].role).toBe("user");
       expect(conversationMessages[0].content).toBe("A");

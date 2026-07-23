@@ -22,6 +22,7 @@ export async function fetchPanelists(discussionId: string): Promise<Panelist[]> 
 export async function generatePanelists(
   discussionId: string,
   expertCount: number,
+  signal?: AbortSignal,
 ): Promise<Panelist[]> {
   const res = await fetch(
     `/api/discussions/${discussionId}/panelists/generate`,
@@ -29,6 +30,7 @@ export async function generatePanelists(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ expertCount }),
+      signal,
     },
   );
 

@@ -121,13 +121,23 @@ export class SimpleReactionEvaluator implements ReactionEvaluator {
       const nameLower = panelist.name.toLowerCase();
       const occupationKeywords = extractKeywords(panelist.occupation);
       const contentLower = lastAssistantMsg.content.toLowerCase();
-      // Check if last message mentions this panelist's name or domain
       if (contentLower.includes(nameLower)) {
-        rebuttalFactor = 0.9; // directly addressed
+        rebuttalFactor = 0.9;
       } else {
         const contentKeywords = extractKeywords(lastAssistantMsg.content);
         const domainOverlap = jaccardSimilarity(occupationKeywords, contentKeywords);
         rebuttalFactor = 0.3 + domainOverlap * 0.6;
+      }
+
+      // Boost: if panelist's beliefs directly oppose last speaker's content
+      const beliefText = panelist.beliefs ?? "";
+      const stanceText = panelist.stance;
+      const lastContentKeywords = extractKeywords(lastAssistantMsg.content);
+      const beliefKeywords = extractKeywords(beliefText + stanceText);
+      const stanceOverlap = jaccardSimilarity(beliefKeywords, lastContentKeywords);
+      // Low overlap on beliefs = higher conflict = stronger rebuttal desire
+      if (stanceOverlap < 0.15 && panelist.speakCount <= 2) {
+        rebuttalFactor = Math.min(1, rebuttalFactor + 0.2);
       }
     }
 
@@ -139,9 +149,9 @@ export class SimpleReactionEvaluator implements ReactionEvaluator {
 
     // ── Combine ──────────────────────────────────────────────
     const rawScore =
-      conflictFactor * 0.35 +
+      conflictFactor * 0.30 +
       waitFactor * 0.25 +
-      rebuttalFactor * 0.20 +
+      rebuttalFactor * 0.25 +
       (1 - (isLastSpeaker ? 1 : 0)) * 0.10; // anti-monopoly bonus
 
     const score = Math.max(0, Math.min(1, rawScore * cooldownMultiplier + jitter));

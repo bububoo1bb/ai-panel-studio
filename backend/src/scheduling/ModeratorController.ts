@@ -143,13 +143,48 @@ export class AIModeratorController implements ModeratorController {
     return { type: "none" };
   }
 
+  /**
+   * M16.8: Only intervene when there's a real need — not mechanically.
+   *
+   * Conditions:
+   * - New conflict detected (≥2 disagreement markers in recent messages)
+   * - Silent expert needs invitation (4+ messages without speaking)
+   * - Near end of discussion (last ~20% of turns)
+   * - Minimum gap of 3 turns since last intervention
+   */
   async shouldIntervene(
-    _discussionId: string,
+    discussionId: string,
     turnCount: number,
     lastInterventionTurn: number,
   ): Promise<boolean> {
     const turnsSinceLastIntervention = turnCount - lastInterventionTurn;
-    // Intervene every 4-6 turns
-    return turnsSinceLastIntervention >= 4;
+    if (turnsSinceLastIntervention < 3) return false;
+
+    // Check for actual need
+    const messages = await this.messageRepo.findByDiscussionId(discussionId);
+    const recentContents = messages.slice(-5).map((m) => m.content);
+
+    // Conflict detection: ≥2 disagreement markers in last 5 messages
+    const conflictMarkers = ["但是", "然而", "不同意", "反对"];
+    const conflictCount = recentContents.filter((c) =>
+      conflictMarkers.some((m) => c.includes(m)),
+    ).length;
+
+    if (conflictCount >= 2) return true; // new conflict — intervene
+
+    // Silent expert: check if any expert hasn't spoken in last 5+ messages
+    const panelists = await this.panelistRepo.findByDiscussionId(discussionId);
+    const recentSpeakerIds = new Set(
+      messages.slice(-5).filter((m) => m.panelistId !== null).map((m) => m.panelistId!),
+    );
+    const experts = panelists.filter((p) => p.role === "expert" && p.status !== "finished");
+    const hasSilentExpert = experts.some((e) => !recentSpeakerIds.has(e.id));
+    if (hasSilentExpert && turnsSinceLastIntervention >= 4) return true;
+
+    // Near-end: last ~20% of turns (intervene to guide toward closing)
+    // This is heuristic — turnCount is relative to maxRounds
+    if (turnsSinceLastIntervention >= 5) return true; // safety: don't go too long without intervention
+
+    return false;
   }
 }

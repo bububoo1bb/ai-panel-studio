@@ -6,10 +6,11 @@ import { MessageRepository } from "./repositories/MessageRepository.js";
 import { InMemoryMessageRepository } from "./repositories/InMemoryMessageRepository.js";
 import { PanelistRepository } from "./repositories/PanelistRepository.js";
 import { InMemoryPanelistRepository } from "./repositories/InMemoryPanelistRepository.js";
+import { InMemoryInsightRepository } from "./repositories/InMemoryInsightRepository.js";
+import { InsightRepository } from "./repositories/InsightRepository.js";
 import { AIService } from "./ai/AIService.js";
 import { MockAIService } from "./ai/MockAIService.js";
 import { PanelistGenerator } from "./services/PanelistGenerator.js";
-import { InsightAnalyzer } from "./services/InsightAnalyzer.js";
 import { RoundController } from "./controllers/RoundController.js";
 import { DiscussionController } from "./controllers/DiscussionController.js";
 import { DynamicDiscussionController } from "./controllers/DynamicDiscussionController.js";
@@ -41,8 +42,8 @@ export interface AppDependencies {
   sessionLifecycle: SessionLifecycle;
   /** Session controller for discussion execution. */
   discussionSessionController: DiscussionSessionController;
-  /** Insight analyzer for consensus/divergence analysis. */
-  insightAnalyzer: InsightAnalyzer;
+  /** Insight repository for persisting final insights. */
+  insightRepository: InsightRepository;
 }
 
 /**
@@ -71,6 +72,9 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
     dependencies?.messageRepository ?? new InMemoryMessageRepository();
   const panelistRepository =
     dependencies?.panelistRepository ?? new InMemoryPanelistRepository();
+
+  const insightRepository =
+    dependencies?.insightRepository ?? new InMemoryInsightRepository();
 
   // AI Service — resolve injected or default to MockAIService for safety
   const aiService =
@@ -149,15 +153,6 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
     panelistRepository,
   });
 
-  // Insight Analyzer — for live consensus/divergence analysis
-  const insightAnalyzer =
-    dependencies?.insightAnalyzer ??
-    new InsightAnalyzer({
-      aiService,
-      discussionRepository,
-      messageRepository,
-    });
-
   // Session controller — resolve injected or create from available deps
   const discussionSessionController =
     dependencies?.discussionSessionController ??
@@ -169,15 +164,16 @@ export function createApp(dependencies?: Partial<AppDependencies>) {
       moderatorStrategy,
     });
 
-  // Discussion routes — with start, stop, pause, and insights endpoints
+  // Discussion routes — with start, stop, pause, insights, and summary
   app.use(
     "/api/discussions",
     createDiscussionRouter(
       discussionRepository,
       discussionSessionController,
       panelistRepository,
-      insightAnalyzer,
+      aiService,
       messageRepository,
+      insightRepository,
     ),
   );
 

@@ -2,7 +2,7 @@ import { DiscussionRepository } from "../repositories/DiscussionRepository.js";
 import { MessageRepository } from "../repositories/MessageRepository.js";
 import { PanelistRepository } from "../repositories/PanelistRepository.js";
 import { AIService } from "../ai/AIService.js";
-import { buildPanelistMessages } from "../ai/PromptBuilder.js";
+import { buildPanelistMessages, DiscussionAgentContext } from "../ai/PromptBuilder.js";
 import { Message } from "../domain/message.js";
 
 /**
@@ -80,12 +80,35 @@ export class RoundController {
     // 5. Load existing discussion messages
     const messages = await this.messageRepo.findByDiscussionId(discussionId);
 
+    // ── Build agent context memory (M16.8) ──────────────────────
+    const allPanelists = await this.panelistRepo.findByDiscussionId(discussionId);
+    const agentContext = this.buildAgentContext(allPanelists, messages, panelist.id);
+
     // 6. Build provider-independent AI messages
     const aiMessages = buildPanelistMessages({
       discussion,
       panelist,
       messages,
+      agentContext,
     });
+
+    // ── 6a. Inject last-speaker context for conversational threading ──
+    // Find the last assistant message (not from this panelist)
+    const lastSpeakerMsg = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.panelistId !== panelist.id);
+
+    if (lastSpeakerMsg && messages.length > 1) {
+      const lastSpeakerPanelist = await this.panelistRepo.findById(
+        lastSpeakerMsg.panelistId ?? "",
+      );
+      const speakerName = lastSpeakerPanelist?.name ?? "上一位专家";
+      // Insert as a user message after the topic, before history
+      aiMessages.splice(2, 0, {
+        role: "user",
+        content: `上一位发言者是${speakerName}，内容："${lastSpeakerMsg.content.slice(0, 80)}"。请直接回应上述观点。`,
+      });
+    }
 
     // 7. Call AIService
     const response = await this.aiService.generate({ messages: aiMessages });
@@ -101,5 +124,47 @@ export class RoundController {
 
     // 9. Return the created Message
     return createdMessage;
+  }
+
+  /**
+   * Build the discussion agent context for prompt injection (M16.8).
+   *
+   * Tracks: all participants, who has spoken, last speaker, current stances.
+   * This prevents the AI from hallucinating experts or referencing unspoken views.
+   */
+  private buildAgentContext(
+    panelists: import("../domain/panelist.js").Panelist[],
+    messages: import("../domain/message.js").Message[],
+    currentPanelistId: string,
+  ): DiscussionAgentContext {
+    const expertPanelists = panelists.filter((p) => p.role === "expert");
+    const participants = panelists.map((p) => p.name);
+
+    // Determine which experts have spoken
+    const spokenExpertIds = new Set(
+      messages
+        .filter((m) => m.panelistId !== null && m.role === "assistant")
+        .map((m) => m.panelistId!),
+    );
+    const spokenExperts = expertPanelists
+      .filter((e) => spokenExpertIds.has(e.id))
+      .map((e) => e.name);
+
+    // Find last speaker (excluding current panelist)
+    const lastSpeakerMsg = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.panelistId !== currentPanelistId);
+    const lastSpeakerPanelist = lastSpeakerMsg?.panelistId
+      ? panelists.find((p) => p.id === lastSpeakerMsg.panelistId)
+      : null;
+    const lastSpeaker = lastSpeakerPanelist?.name ?? null;
+
+    // Build current stances map
+    const currentStances: Record<string, string> = {};
+    for (const e of expertPanelists) {
+      currentStances[e.name] = e.stance;
+    }
+
+    return { participants, spokenExperts, lastSpeaker, currentStances };
   }
 }

@@ -73,7 +73,6 @@ export function DiscussionForm() {
         >
           <option value={60}>1 分钟</option>
           <option value={180}>3 分钟</option>
-          <option value={300}>5 分钟</option>
         </select>
         <span className="form-hint">时间到后主持人将自动总结并结束讨论</span>
       </div>

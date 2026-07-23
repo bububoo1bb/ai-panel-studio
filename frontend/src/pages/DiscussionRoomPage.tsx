@@ -24,7 +24,7 @@ import { useParams, Link } from "react-router-dom";
 import type { Discussion } from "../types/discussion.js";
 import type { Panelist } from "../types/panelist.js";
 import type { Message } from "../types/message.js";
-import { fetchDiscussion, startDiscussion, stopDiscussion, fetchInsights, type InsightData } from "../api/discussionApi.js";
+import { fetchDiscussion, startDiscussion, stopDiscussion, fetchInsights, fetchSummary, type InsightData } from "../api/discussionApi.js";
 import { fetchPanelists } from "../api/panelistApi.js";
 import { fetchMessages } from "../api/messageApi.js";
 import { ExpertPanel } from "../components/discussion/ExpertPanel.js";
@@ -47,6 +47,8 @@ export default function DiscussionRoomPage() {
   const [executionState, setExecutionState] = useState<ExecutionState>("idle");
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [insights, setInsights] = useState<InsightData>({ consensus: [], divergence: [] });
+  const [insightPhase, setInsightPhase] = useState<string>("waiting");
+  const [finalSummary, setFinalSummary] = useState<string>("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
@@ -56,15 +58,23 @@ export default function DiscussionRoomPage() {
     setError(null);
 
     try {
-      const [disc, panels, msgs] = await Promise.all([
+      const [disc, panels, msgs, insightData] = await Promise.all([
         fetchDiscussion(id),
         fetchPanelists(id),
         fetchMessages(id),
+        fetchInsights(id).catch(() => ({ consensus: [], divergence: [], phase: "waiting" })),
       ]);
 
       setDiscussion(disc);
       setPanelists(panels);
       setMessages(msgs);
+      setInsights(insightData);
+      if ((insightData as Record<string, unknown>).phase) {
+        setInsightPhase((insightData as Record<string, unknown>).phase as string);
+      }
+      if ((insightData as Record<string, unknown>).summary) {
+        setFinalSummary((insightData as Record<string, unknown>).summary as string);
+      }
 
       // Determine active speaker from the latest message
       if (msgs.length > 0) {
@@ -104,7 +114,8 @@ export default function DiscussionRoomPage() {
     setExecutionState("running");
 
     try {
-      await startDiscussion(id, 5); // default maxRounds = 5
+      const maxRounds = 50; // generous cap, user stops when ready
+      await startDiscussion(id, maxRounds);
     } catch (err) {
       setExecutionError(
         err instanceof Error ? err.message : "讨论启动失败",
@@ -146,6 +157,9 @@ export default function DiscussionRoomPage() {
         setPanelists(panels);
         setMessages(msgs);
         setInsights(insightData);
+        if ((insightData as Record<string, unknown>).phase) {
+          setInsightPhase((insightData as Record<string, unknown>).phase as string);
+        }
 
         // Update active speaker
         if (msgs.length > 0) {
@@ -156,8 +170,11 @@ export default function DiscussionRoomPage() {
         // Check if discussion has finished or been stopped
         if (disc.status === "finished") {
           setExecutionState("finished");
+          // Fetch final summary
+          fetchSummary(id).then((s) => setFinalSummary(s.moderatorSummary ?? "")).catch(() => {});
         } else if (disc.status === "stopped") {
           setExecutionState("stopped");
+          fetchSummary(id).then((s) => setFinalSummary(s.moderatorSummary ?? "")).catch(() => {});
         }
       } catch {
         // Polling failure is silent — retry on next interval
@@ -212,17 +229,12 @@ export default function DiscussionRoomPage() {
           ← 返回
         </Link>
         <h1 className={styles.topic}>{discussion?.title ?? "讨论演播厅"}</h1>
-        {executionState === "running" && discussion?.durationLimit && (
-          <span className={styles.timer}>
-            {Math.floor(discussion.durationLimit / 60)}:00
-          </span>
-        )}
         <div className={styles.topRight}>
           {executionState === "idle" && (
             <button
               className={styles.startButton}
               onClick={handleStart}
-              disabled={panelists.length === 0}
+              disabled={panelists.filter((p) => p.role === "expert").length === 0}
             >
               开始讨论
             </button>
@@ -282,6 +294,8 @@ export default function DiscussionRoomPage() {
             consensus={insights.consensus}
             divergence={insights.divergence}
             discussionStatus={discussion?.status}
+            phase={insightPhase}
+            finalSummary={finalSummary || undefined}
           />
         </aside>
       </div>

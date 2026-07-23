@@ -28,13 +28,13 @@ export default function DashboardPage() {
         if (cancelled) return;
         setDiscussions(list);
 
-        // Fetch panelist counts for each discussion in parallel
+        // Fetch expert counts for each discussion (excludes moderator)
         const counts: Record<string, number> = {};
         await Promise.all(
           list.map(async (d) => {
             try {
               const panelists = await fetchPanelists(d.id);
-              counts[d.id] = panelists.length;
+              counts[d.id] = panelists.filter((p) => p.role === "expert").length;
             } catch {
               counts[d.id] = 0;
             }
