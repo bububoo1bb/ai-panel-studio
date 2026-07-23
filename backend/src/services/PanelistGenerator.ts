@@ -115,6 +115,27 @@ export class PanelistGenerator {
     // ── 4. Call AIService ───────────────────────────────────────
     const response = await this.aiService.generate({ messages });
 
+    // ── DEBUG: Log raw AI response before parsing ───────────────
+    console.log("══════════ PANELIST GENERATION DEBUG ══════════");
+    console.log("Topic:", topic);
+    console.log("Expert count:", expertCount);
+    console.log("AI model:", response.model);
+    console.log("AI usage:", JSON.stringify(response.usage));
+    console.log("--- RAW RESPONSE CONTENT (first 2000 chars) ---");
+    console.log(response.content.slice(0, 2000));
+    if (response.content.length > 2000) {
+      console.log(
+        `... (${response.content.length - 2000} more chars, showing last 500) ...`,
+      );
+      console.log(response.content.slice(-500));
+    }
+    console.log("--- RAW RESPONSE LENGTH:", response.content.length, "chars ---");
+    console.log(
+      "--- FIRST 200 BYTES (hex):",
+      Buffer.from(response.content.slice(0, 200)).toString("hex"),
+    );
+    console.log("══════════ END DEBUG ══════════");
+
     // ── 5. Parse JSON response ──────────────────────────────────
     const rawPanelists = parsePanelistGenerationResponse(response.content);
 
